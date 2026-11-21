@@ -244,10 +244,22 @@ ARM = {  # left arm: (elbow, hand, show_hand); the right arm is mirrored
     'shrug': ((-132, -246), (-184, -312), True), 'cross': ((-70, -236), (40, -262), True),
     'wave': ((-150, -330), (-176, -446), True), 'head': ((-150, -380), (-86, -470), True),
     'point': ((-150, -300), (-236, -306), True)}
+# New physical-action arm poses.
+ARM["fall"] = (
+    (-145, -270),
+    (-225, -245),
+    True)
 POSES = dict(idle=('down', 'down'), present=('down', 'present'), explain=('gesture', 'down'), think=('down', 'chin'),
              pockets=('pocket', 'pocket'), celebrate=('up', 'up'), shrug=('shrug', 'shrug'), point=('down', 'point'),
              hips=('hip', 'hip'), hold=('hold', 'hold'), tiphat=('down', 'hat'), wave=('down', 'wave'), arms_crossed=('cross', 'cross'),
              facepalm=('down', 'head'), stressed=('head', 'head'), push=('down', 'push'), present_left=('present', 'down'))
+# Extend existing poses without removing old ones.
+POSES.update({
+    "falling": ("fall", "fall"),
+    "unconscious": ("down", "down"),
+    "slumped": ("down", "down"),
+    "pushing_up": ("push", "push"),
+})
 EMOTIONS = {  # eyes, mouth, brow, brow_tilt, extras
     'neutral': ('dot', 'smile', 0.0, 0.0, {}), 'calm': ('dot', 'flat', 0.0, 0.0, {}),
     'happy': ('closed', 'open', 0.3, 0.0, {}), 'smile': ('dot', 'smile', 0.2, 0.0, {}),
@@ -292,14 +304,27 @@ def _hair_cap(c, R, face, colr, lw, fringe=-62):
 
 
 def draw_char(c, x, y, s, spec, face=0.0, eyes='dot', mouth='smile', brow=0.0, brow_tilt=0.0, arms=('down', 'down'),
-              tilt=0.0, bob=0.0, squash=0.0, sweat=-1.0, light=-1, rim=None, hat=None, legs=None, pupil=0.0, sparkle=0.0):
+              tilt=0.0, bob=0.0, squash=0.0, sweat=-1.0, light=-1, rim=None, hat=None, legs=None, pupil=0.0, sparkle=0.0,
+              whole_angle=0.0, body_angle=0.0, head_angle=0.0):
     """x,y = feet. s=1 -> head radius 100 px (s=1 wide shot, s~2.15 close-up with feet at y~1390).
-    face -1..1 = 3/4 turn. light -1 = key from left. eyes: dot/half/wide/closed. mouth: smile/smirk/flat/o/mid/open."""
+    face -1..1 = 3/4 turn. light -1 = key from left. eyes: dot/half/wide/closed. mouth: smile/smirk/flat/o/mid/open.
+    whole_angle rotates the complete character about the pelvis, body_angle rotates the upper body about the
+    pelvis and head_angle adds independent head rotation (all in degrees, 0 = upright)."""
     lw = max(5.2, 4.0 / s); R = HEAD_R; outfit = spec.get('outfit', 'suit')
     hat = spec.get('hat') if hat is None else hat
     c.save(); c.translate(x, y); c.scale(s, s)
+    # Rotate the complete character around the pelvis.
+    c.translate(0, BODY_BOT)
+    c.rotate(whole_angle)
+    c.translate(0, -BODY_BOT)
     for (hx0, fx, lift) in (legs or ((-24, 0, 0), (24, 0, 0))):
         c.drawLine(hx0, BODY_BOT - 8, hx0 + fx, -lift, ink(lw))
+    # Save the body transform independently of the legs, so the upper body can lean
+    # forward while the lower body keeps the whole-body rotation.
+    c.save()
+    c.translate(0, BODY_BOT)
+    c.rotate(body_angle)
+    c.translate(0, -BODY_BOT)
     c.translate(0, -bob); c.scale(1 + squash * .6, 1 - squash)
     if outfit == 'dress':
         sk = skia.Path(); sk.moveTo(-70, BODY_BOT - 70); sk.lineTo(70, BODY_BOT - 70); sk.lineTo(104, BODY_BOT + 30); sk.quadTo(0, BODY_BOT + 46, -104, BODY_BOT + 30); sk.close()
@@ -334,7 +359,7 @@ def draw_char(c, x, y, s, spec, face=0.0, eyes='dot', mouth='smile', brow=0.0, b
         sx, sy = SHOULDER[0] * m, SHOULDER[1]; ex, ey, hx_, hy_ = e[0] * m, e[1], h[0] * m, h[1]
         ap = skia.Path(); ap.moveTo(sx, sy); ap.quadTo(1.35 * ex - .175 * (sx + hx_), 1.35 * ey - .175 * (sy + hy_), hx_, hy_); c.drawPath(ap, ink(lw))
         if show: circ(c, hx_, hy_, 13, spec['skin'], lw * .8)
-    c.save(); c.translate(0, HEAD_CY); c.rotate(tilt)
+    c.save(); c.translate(0, HEAD_CY); c.rotate(tilt + head_angle)
     head = skia.Path(); head.addCircle(0, 0, R); hair = spec.get('hair', 'short')
     if hair == 'bald':
         for sx in (-1, 1):
@@ -416,7 +441,9 @@ def draw_char(c, x, y, s, spec, face=0.0, eyes='dot', mouth='smile', brow=0.0, b
         sx0, sy0 = (-1 if face > 0 else 1) * 62, -66 + 30 * (sweat % 1.0)
         d = skia.Path(); d.moveTo(sx0, sy0 - 19); d.cubicTo(sx0 + 12, sy0 - 3, sx0 + 11, sy0 + 10, sx0, sy0 + 10); d.cubicTo(sx0 - 11, sy0 + 10, sx0 - 12, sy0 - 3, sx0, sy0 - 19); d.close()
         shape(c, d, '#8FC8EE', lw * .7)
-    c.restore(); c.restore()
+    c.restore()  # Head transformation
+    c.restore()  # Upper-body transformation
+    c.restore()  # Complete character transformation
 
 
 def walk_legs(phase, stride=46, lift=20):  # legs=walk_legs((t-t0)*11) with bob=7*abs(sin(phase))

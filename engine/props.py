@@ -108,13 +108,59 @@ def ic_bulb(c, t, o):
     w = skia.Path(); w.moveTo(-36, 70); w.lineTo(-20, -30); w.lineTo(0, 10); w.lineTo(20, -30); w.lineTo(36, 70); c.drawPath(w, ink(LW * .7, '#B8862A'))
 
 
+def _mix_hex(a, b, amount):
+    """Interpolate between two hexadecimal colours."""
+    amount = max(0.0, min(1.0, amount))
+    ca = rgb(a)
+    cb = rgb(b)
+    result = tuple(
+        round(ca[i] * (1 - amount) + cb[i] * amount)
+        for i in range(3)
+    )
+    return '#%02X%02X%02X' % result
+
+
+def _cubic(p0, c1, c2, p3, u):
+    """Point on a cubic Bezier at u (0..1)."""
+    v = 1.0 - u
+    return v * v * v * p0 + 3 * v * v * u * c1 + 3 * v * u * u * c2 + u * u * u * p3
+
+
 def ic_brain(c, t, o):
+    darkness = max(
+        0.0,
+        min(1.0, float(o.get("darkness", 0.0)))
+    )
+    activity = 1.0 - darkness
+    # Brain silhouette.
     p = skia.Path()
-    for (x, y, r) in ((-80, -40, 80), (0, -80, 90), (80, -40, 80), (-60, 40, 80), (60, 40, 80), (0, 10, 80)): p.addCircle(x, y, r)
-    p = skia.Op(p, skia.Path(), skia.PathOp.kUnion_PathOp); shape(c, p, '#F4A0B8', LW)
-    for s in ((-90, -60, -30, -10, -70, 40), (20, -110, 60, -40, 10, 20), (90, -20, 60, 30, 110, 70)):
-        q = skia.Path(); q.moveTo(s[0], s[1]); q.cubicTo(s[2], s[3], s[4], s[5], s[4] + 20, s[5] + 20); c.drawPath(q, ink(LW * .7, '#B85A78'))
-    line(c, 0, -160, 0, 110, LW * .7, '#B85A78')
+    for (x, y, r) in (
+        (-80, -40, 80),
+        (0, -80, 90),
+        (80, -40, 80),
+        (-60, 40, 80),
+        (60, 40, 80),
+        (0, 10, 80)
+    ):
+        p.addCircle(x, y, r)
+    p = skia.Op(p, skia.Path(), skia.PathOp.kUnion_PathOp)
+    shape(c, p, _mix_hex('#F4A0B8', '#3A3448', darkness), LW)
+    # Fold lines fade as the brain goes dark.
+    folds = ((-90, -60, -30, -10, -70, 40), (20, -110, 60, -40, 10, 20), (90, -20, 60, 30, 110, 70))
+    fold_col = _mix_hex('#B85A78', '#241E2E', darkness)
+    fold_alpha = 70 + 185 * activity
+    for s in folds:
+        q = skia.Path(); q.moveTo(s[0], s[1]); q.cubicTo(s[2], s[3], s[4], s[5], s[4] + 20, s[5] + 20)
+        c.drawPath(q, ink(LW * .7, fold_col, fold_alpha))
+    line(c, 0, -160, 0, 110, LW * .7, fold_col, fold_alpha)
+    # Neural pulses travel along the folds while the brain is active and stop as it darkens.
+    if activity > .02:
+        for i, s in enumerate(folds):
+            u = (t * .55 + i * .37) % 1.0
+            px = _cubic(s[0], s[2], s[4], s[4] + 20, u)
+            py = _cubic(s[1], s[3], s[5], s[5] + 20, u)
+            c.drawCircle(px, py, 17 * activity, fp('#7FD0FF', 130 * activity))
+            c.drawCircle(px, py, 7 * activity, fp('#FFFFFF', 235 * activity))
 
 
 def ic_clock(c, t, o):

@@ -6,6 +6,7 @@ from .kit import *
 from .sets import SETS, block
 from .props import DOCS, draw_prop, sleeve, bills, arrow
 from .fx import poplabel, stamp, tag, lower_third, typed, ring, bubble, number_badge
+from .actions import normalize_action, sample_action
 
 PADX, PADY = 420, (460 if PORT else 260)   # bg cache padding: portrait band top (y=-411) must be covered
 LABEL_SLOTS = [(330, -5), (560, 4), (780, -3), (200, 5)]
@@ -24,6 +25,9 @@ class Actor:
                             + [dict(b, t=shot.cue(b.get("at"))) for b in d.get("beats", [])], key=lambda b: b["t"])
         self.talk = shot.tl.talk_spans(shot.sh, d.get("talk", shot.spec.get("talk") if shot.spec.get("who") == d["id"] else None))
         self.walk = d.get("walk"); self.enter = d.get("enter"); self.exit = d.get("exit")
+        # Character-level physical action.
+        self.action = normalize_action(d.get("action"))
+        self.action_start = shot.cue(self.action.get("at"), 0.0) if self.action else None
         if PORT and not self.walk: self.x = min(max(self.x, VX0 + 110), VX1 - 110)   # static characters stay inside the portrait band
         self.head = (self.x, self.y - 420 * self.s)
 
@@ -47,7 +51,15 @@ class Actor:
         k = K(t, tb, .3); pa = POSES.get(prev["pose"], POSES["idle"]); pb = POSES.get(st["pose"], POSES["idle"])
         arms = tuple((pa[i], pb[i], k) if pa[i] != pb[i] and k < 1 else pb[i] for i in range(2))
         face = lerp(prev["face"], st["face"], back(k, 1.2)) if prev["face"] != st["face"] else st["face"]
-        x = self.x; legs = None; walking = False; bob = 2 + 2 * math.sin(t * 3 + self.ph); tilt = 1.4 * math.sin(t * 2.2 + self.ph)
+        x = self.x
+        y = self.y
+        legs = None
+        walking = False
+        bob = 2 + 2 * math.sin(t * 3 + self.ph)
+        tilt = 1.4 * math.sin(t * 2.2 + self.ph)
+        whole_angle = 0.0
+        body_angle = 0.0
+        head_angle = 0.0
         if self.walk:
             u = K(t, t0 + .1, max(.5, (t1 - t0) - .4)); x = lerp(self.walk[0], self.walk[1], u); walking = 0 < u < 1
         elif self.enter:
@@ -58,19 +70,58 @@ class Actor:
         if walking:
             ph = (t - t0) * 11; legs = walk_legs(ph); bob = 7 * abs(math.sin(ph)); tilt = 3 * math.sin(ph)
             face = .7 if (self.walk and self.walk[1] > self.walk[0]) or self.enter == "left" or (self.exit == "right" and K(t, t1 - 1.1, 1) > 0) else -.7
+        # Sample the character's physical action.
+        action_state = sample_action(
+            self.action,
+            t,
+            self.action_start,
+            scale=self.s,
+            facing=self.face)
+        if action_state:
+            x += action_state["dx"]
+            y += action_state["dy"]
+            # Physical actions override ordinary walking.
+            walking = False
+            legs = None
+            # Select an action-specific arm pose.
+            arms = POSES.get(
+                action_state["pose"],
+                ("down", "down")
+            )
+            whole_angle = action_state["whole_angle"]
+            body_angle = action_state["body_angle"]
+            head_angle = action_state["head_angle"]
         m = self.mouth_at(t)
         if m: mouth = {'open': 'open', 'mid': 'mid', 'closed': mouth if mouth in ('smile', 'smirk', 'flat') else 'flat'}[m]; bob += 3 if m == 'open' else 0
         if eyes != 'closed' and blink(t, 2.5, self.ph): eyes = 'closed'
         if st["pose"] in ("facepalm",): eyes = 'closed'
+        # The physical action takes priority over idle animation,
+        # blinking and ordinary emotional expression.
+        if action_state:
+            action_emotion = EMOTIONS.get(
+                action_state["emotion"],
+                EMOTIONS["neutral"]
+            )
+            eyes, mouth, brow, btilt, ex = action_emotion
+            eyes = action_state["eyes"]
+            mouth = action_state["mouth"]
+            bob = action_state["bob"]
+            tilt = 0.0
         sq = .06 * math.sin(K(t, t0, .26) * math.pi) + (.06 * math.sin(K(t, tb, .26) * math.pi) if tb > t0 else 0)
+        if action_state:
+            sq = action_state["squash"]
         sweat = (t - t0) * 1.1 if ex.get('sweat') else -1
         sparkle = (t - tb) / .3 if ex.get('sparkle') and t - tb < 1.2 else 0
         if self.sh.dark_ok:
             c.drawOval(skia.Rect(x - 110 * self.s, self.y - 22 * self.s, x + 110 * self.s, self.y + 22 * self.s), fp((0, 0, 0), 110, blur=8))
-        draw_char(c, x, self.y, self.s, self.look, face=face, eyes=eyes, mouth=mouth, brow=brow, brow_tilt=btilt, arms=arms,
+        draw_char(c, x, y, self.s, self.look, face=face, eyes=eyes, mouth=mouth, brow=brow, brow_tilt=btilt, arms=arms,
                   tilt=tilt + (-4 if st["emotion"] in ("smug", "sad", "tired") else 0), bob=bob, squash=sq, sweat=sweat,
-                  light=1 if face < 0 else -1, rim='#FFE6B0' if self.sh.night else None, legs=legs, pupil=ex.get('pupil', 0), sparkle=sparkle)
-        self.head = (x, self.y + HEAD_CY * self.s)
+                  light=1 if face < 0 else -1, rim='#FFE6B0' if self.sh.night else None, legs=legs, pupil=ex.get('pupil', 0), sparkle=sparkle,
+                  whole_angle=whole_angle, body_angle=body_angle, head_angle=head_angle)
+        # Keep the head anchor aligned with the rotated body (bubbles, polaroid rings).
+        theta = math.radians(whole_angle + body_angle)
+        local_y = (HEAD_CY - BODY_BOT) * self.s
+        self.head = (x - local_y * math.sin(theta), y + BODY_BOT * self.s + local_y * math.cos(theta))
 
 
 class Shot:
@@ -442,7 +493,23 @@ class Icon(Shot):
         else:
             self.lab_mw = 620 if n < 3 else 520
             xs = {1: [960], 2: [620, 1300], 3: [460, 960, 1460]}.get(n, [300 + i * 1320 / max(1, n - 1) for i in range(n)])
-        self.icons = [dict(d, t=self.cue(d.get("at"), .05 + .25 * i), x=d.get("x", xs[i]), y=d.get("y", 470)) for i, d in enumerate(ic)]
+        self.icons = []
+        for i, source in enumerate(ic):
+            d = dict(
+                source,
+                t=self.cue(
+                    source.get("at"),
+                    .05 + .25 * i
+                ),
+                x=source.get("x", xs[i]),
+                y=source.get("y", 470)
+            )
+            if d.get("state") == "active_to_dark":
+                d["state_t"] = self.cue(
+                    d.get("state_at"),
+                    .5
+                )
+            self.icons.append(d)
         self.events += [("pop", d["t"]) for d in self.icons]
         for d in self.spec.get("chars", []): self.actors.append(Actor(self, d, d.get("x", 1280 if PORT else 1650), 1010, d.get("s", .8), d.get("face", -.6)))
 
@@ -452,9 +519,29 @@ class Icon(Shot):
         super().world(c, t)
         for d in self.icons:
             if t < d["t"]: continue
-            k = back(K(t, d["t"], .4), 1.6); fl = 8 * math.sin((t - d["t"]) * 2.2)
+            progress = K(t, d["t"], .45)
+            entrance = d.get("entrance", "pop")
+            # Different entrance styles.
+            if entrance == "soft_scale":
+                k = lerp(.94, 1.0, ease_out(progress))
+                movement = 0.0
+            elif entrance == "slide_up":
+                k = ease_out(progress)
+                movement = lerp(70, 0, ease_out(progress))
+            elif entrance == "none":
+                k = 1.0
+                movement = 0.0
+            else:
+                k = back(progress, 1.6)
+                movement = 8 * math.sin((t - d["t"]) * 2.2)
             sc = d.get("s", 1.6 if len(self.icons) == 1 else 1.2 if len(self.icons) == 2 else (.75 if PORT else .95))
-            draw_prop(c, d["name"], d["x"], d["y"] + fl, sc * k, t, **{x: v for x, v in d.items() if x not in ("name", "x", "y", "s", "at", "t", "label")})
+            opts = {x: v for x, v in d.items()
+                    if x not in ("name", "x", "y", "s", "at", "t", "label",
+                                 "entrance", "state", "state_at", "state_t", "state_duration")}
+            if d.get("state") == "active_to_dark" and d.get("state_t") is not None:
+                # 0 = fully active, 1 = fully dark, over state_duration seconds.
+                opts["darkness"] = K(t, d["state_t"], d.get("state_duration", 1.2))
+            draw_prop(c, d["name"], d["x"], d["y"] + movement, sc * k, t, **opts)
             if d.get("label"):
                 s_ = d["label"]; label(c, s_, d["x"], d["y"] + 210 * sc + 70, fit_size(s_, 80, self.lab_mw), INK, align='center', skew=-0.1, alpha=K(t, d["t"] + .2, .2))
 
@@ -536,6 +623,13 @@ class Crowd(Shot):
 
     def __init__(self, *a):
         super().__init__(*a); self.setname = self.setname or "void"
+        # One shared action trigger for the whole group.
+        self.group_action = normalize_action(
+            self.spec.get("action"))
+        self.group_action_start = (
+            self.cue(self.group_action.get("at"), 0.5)
+            if self.group_action else None
+        )
         n = int(self.spec.get("count", 21)); r = random.Random(n); palette = ['#3B4660', '#7A5A3C', '#5A6B4A', '#6A4A6A', '#3F5F72', '#8A3A3A', '#C9A04A', '#2F6B9A']
         self.people = []
         rows = 3; per = math.ceil(n / rows)
@@ -559,8 +653,48 @@ class Crowd(Shot):
     def world(self, c, t):
         self.draw_bg(c); em = self.spec.get("emotion", "neutral"); e = EMOTIONS.get(em, EMOTIONS["neutral"])
         for (x, y, s, look, f, ph) in self.people:
-            draw_char(c, x, y, s, look, face=f, eyes='closed' if blink(t, 2.6, ph) else e[0], mouth=e[1], brow=e[2], brow_tilt=e[3],
-                      bob=3 * abs(math.sin(t * 2 + ph)), tilt=2 * math.sin(t * 1.7 + ph), light=-1)
+            action_state = sample_action(
+                self.group_action,
+                t,
+                self.group_action_start,
+                scale=s,
+                facing=f
+            )
+            if action_state:
+                emotion = EMOTIONS.get(
+                    action_state["emotion"],
+                    EMOTIONS["neutral"]
+                )
+                eyes, mouth, brow, brow_tilt, extras = emotion
+                eyes = action_state["eyes"]
+                mouth = action_state["mouth"]
+                arms = POSES.get(
+                    action_state["pose"],
+                    ("down", "down")
+                )
+                draw_char(
+                    c,
+                    x + action_state["dx"],
+                    y + action_state["dy"],
+                    s,
+                    look,
+                    face=f,
+                    eyes=eyes,
+                    mouth=mouth,
+                    brow=brow,
+                    brow_tilt=brow_tilt,
+                    arms=arms,
+                    bob=action_state["bob"],
+                    tilt=0.0,
+                    squash=action_state["squash"],
+                    whole_angle=action_state["whole_angle"],
+                    body_angle=action_state["body_angle"],
+                    head_angle=action_state["head_angle"],
+                    light=-1
+                )
+            else:
+                draw_char(c, x, y, s, look, face=f, eyes='closed' if blink(t, 2.6, ph) else e[0], mouth=e[1], brow=e[2], brow_tilt=e[3],
+                          bob=3 * abs(math.sin(t * 2 + ph)), tilt=2 * math.sin(t * 1.7 + ph), light=-1)
         if self.hl: ring(c, self.hl["x"], self.hl["y"] - 330 * self.hl["s"], 190 * self.hl["s"] + 40, 330 * self.hl["s"] + 40, (t - self.hl["t"]) / .45)
 
     def light_on(self): return self.time != "day"

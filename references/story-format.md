@@ -56,6 +56,126 @@ Give every main character a distinct silhouette and colour (hair shape plus outf
 - `enter` / `exit`: `left` or `right` walks the character in or out. `walk: [x0, x1]` walks across the whole shot.
 - Characters always idle-bob, blink and squash on cuts. You don't need to animate that.
 
+## Physical Character Actions
+
+Characters must perform the physical events described by the narration.
+
+Emotion, pose and physical action are different concepts.
+
+- Emotion describes what a character feels.
+- Pose describes how a character holds their body.
+- Action describes what physically happens.
+- End state describes where the character finishes.
+
+Supported actions:
+
+- `collapse`
+- `fall_forward`
+- `fall_backward`
+- `slump_forward`
+- `get_up`
+
+An action is specified inside a character:
+
+```json
+{
+  "id": "person_01",
+  "action": {
+    "name": "collapse",
+    "at": "instantly",
+    "duration": 0.9,
+    "direction": "auto"
+  }
+}
+```
+
+- `name`: one of the supported actions.
+- `at`: the cue, same rules as every other `at` (a word from the shot's sentences, a fraction, `"+1.2"`, or `"instantly"` for the shot start).
+- `duration`: seconds the movement takes (default 0.9).
+- `direction`: `auto` (default: the way the character faces), `forward`, `backward`, `left`, `right`.
+
+Every action must have:
+
+1. Correct starting position.
+2. Appropriate physical movement.
+3. A visible transition.
+4. Correct interaction with the environment when applicable.
+5. A believable final state.
+
+Never communicate collapse by simply changing a character's expression
+or closing their eyes while they remain standing.
+
+After a character becomes unconscious, stop ordinary idle movement.
+
+For group events, use a shared action trigger. Do not give each
+person an unrelated animation time when the narration describes
+a simultaneous event.
+
+### Action examples
+
+Crowd collapse (one shared trigger for the whole group):
+
+```json
+{
+  "kind": "crowd",
+  "s": [10],
+  "set": "street",
+  "count": 15,
+  "action": {
+    "name": "collapse",
+    "at": "instantly",
+    "duration": 0.9,
+    "direction": "auto"
+  }
+}
+```
+
+Driver slumps (upper body only):
+
+```json
+{
+  "kind": "wide",
+  "s": [11],
+  "set": "office",
+  "chars": [
+    {
+      "id": "driver",
+      "x": 960,
+      "s": 1.1,
+      "action": {
+        "name": "slump_forward",
+        "at": "collapses",
+        "duration": 1.0
+      }
+    }
+  ]
+}
+```
+
+This second example only demonstrates the initial upper-body slump. A believable seated driver still requires a seated leg rig, car interior and steering-wheel interaction.
+
+Brain goes dark (an icon with an animated state change):
+
+```json
+{
+  "kind": "icon",
+  "s": [12],
+  "icons": [
+    {
+      "name": "brain",
+      "at": "mind",
+      "label": "MIND ACTIVE",
+      "entrance": "soft_scale",
+      "state": "active_to_dark",
+      "state_at": "dark",
+      "state_duration": 1.2
+    }
+  ]
+}
+```
+
+The brain starts normally, neural activity moves, then the darkness spreads when the word "dark" is spoken.
+
 ## Shared fields (any shot)
 
 | field | what it does |
@@ -88,7 +208,7 @@ Give every main character a distinct silhouette and colour (hair shape plus outf
 `time`, `tag`. Use it for the first shot in a city or a time jump.
 
 ### `crowd`: many small people
-`count` (9-30), `emotion`, `highlight` (cast id, ringed at `at`), `set` (`void` default, or `street`). Use it for "millions of people", "most people", "everyone".
+`count` (9-30), `emotion`, `highlight` (cast id, ringed at `at`), `set` (`void` default, or `street`), `action` (one shared [physical action](#physical-character-actions) for the whole group, for example a mass collapse). Use it for "millions of people", "most people", "everyone".
 
 ### `table`: top-down desk with documents sliding in
 `items` (1-3): `{"type": "newspaper", "title": "THE DAILY", "text": "HEADLINE", "ring_at": "word", "at": "word", "stamp": {"text": "FAKE", "at": "word"}}`.
@@ -105,6 +225,8 @@ Types: `newspaper`, `letter` (`title`, `text`), `contract`, `receipt` (`rows: [[
 
 ### `icon`: 1-3 big icons popping in on paper
 `icons: [{"name": "bulb", "label": "THE IDEA", "at": "idea"}]`, optional small `chars` (one character at the side). Icons: `bulb brain clock moneybag coins house trophy heart lock hourglass warning laptop gift book phone chart_up chart_down calendar (top, text) target car money marshmallow shopping (text)`. Icons that take text (`calendar`, `laptop`, `book`, `shopping`) take `text` and `top`.
+`entrance`: `pop` (default, bounces in), `soft_scale` (gentle scale-up), `slide_up` (rises into place) or `none` (already there). Do not use `pop` for every graphic - pick the entrance that fits the event.
+`state`: `"active_to_dark"` with `state_at` (cue) and `state_duration` (seconds, default 1.2) animates an icon from active to dark; it is implemented for `brain` (neural pulses fade, the brain darkens).
 
 ### `list`: numbered point for listicles
 `number`, `text` (2-6 words), `who`, `emotion`, `badge` colour. One per list item, then show the item with other kinds.

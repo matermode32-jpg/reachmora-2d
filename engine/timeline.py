@@ -66,6 +66,7 @@ class Timeline:
         """at: word/phrase from the shot's sentences, a fraction 0-1 of the shot, '+1.5' seconds after start, or None."""
         t0, t1 = shot["t0"], shot["t1"]
         if at is None: return t0 + default
+        if isinstance(at, str) and at.strip().lower() in ("instantly", "immediately", "at once"): return t0
         if isinstance(at, (int, float)): return t0 + (t1 - t0) * float(at) if at <= 1 else t0 + float(at)
         if isinstance(at, str) and at.startswith("+"): return t0 + float(at[1:])
         target = [norm(w) for w in str(at).split() if norm(w)]

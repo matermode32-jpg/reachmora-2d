@@ -22,6 +22,67 @@ You don't write drawing code. You write a **`story.json` storyboard** (shot kind
 - You can't hear audio or watch playback. Verify through alignment numbers, frame checks and loudness readings, and tell the user to watch once for timing.
 - Keep the user informed with a task list. The 10-15 min renders take a while, so give progress updates.
 
+## Visual Direction Rules
+
+Do not select a graphic simply because the narration contains a noun.
+
+Interpret the entire sentence and identify its visual event.
+
+Examples:
+
+"Drivers collapse inside their cars."
+
+Correct direction:
+A cinematic car-interior scene with drivers physically slumping.
+
+Incorrect direction:
+A collection of car and person icons popping onto a blank background.
+
+"Every human mind goes dark."
+
+Correct direction:
+A visible brain state transformation with neural activity fading
+and the brain becoming dark.
+
+Incorrect direction:
+A normal static brain icon.
+
+"Cooks collapse beside burning stoves."
+
+Correct direction:
+A kitchen environment, visible stove, active flames and physical
+character collapse.
+
+Incorrect direction:
+A cook icon appearing beside a fire icon.
+
+Use graphic overlays only when they add meaningful explanatory
+information.
+
+Do not use popup animation as the default entrance for every
+graphic or visual element.
+
+Animation must communicate the event, not merely add movement.
+
+## Staging limits (what the engine cannot show yet)
+
+| Capability | Status |
+|---|---|
+| Basic physical collapse | implemented |
+| Upper-body slump | implemented |
+| Getting up | implemented |
+| Coordinated crowd collapse | implemented |
+| Animated brain darkening | implemented |
+| Reusable physical rig | partial |
+| Seated driver animation | not complete (needs a seated leg rig, car interior, steering wheel) |
+| Pilot cockpit environment | not implemented |
+| Kitchen / animated stove environment | not implemented |
+| Full environment interactions | not implemented |
+| AI visual-action validator | not implemented |
+| Composition analysis | not implemented |
+
+Never promise a scene the engine cannot stage. If the narration needs one of the missing pieces, stage the closest supported shot (a supported set with characters performing a physical action), and tell the user what is missing.
+
 ## Stage 1: 10 video ideas (start here unless the user already has a script or voiceover)
 
 - If the user attached a voiceover **and** gave the script text, go straight to Stage 4. With a script but no voiceover, go to Stage 3's delivery step. With a voiceover but no script, ask for the script text (the timing needs it).
@@ -96,7 +157,8 @@ Run `python3 -m engine plan <P>`. It prints the shot table (times, length, whips
 
 ## Engine map (for edits beyond story.json)
 
-- `engine/kit.py`: colours, easing, ink shapes, lighting (`night()` multiply darkness with punched light pools), grade and quarter-res bloom, and the puppet `draw_char()` (outfits, hair, hats, expressions, arm poses, walk cycle). Fonts ship in `fonts/` (OFL/Apache).
+- `engine/kit.py`: colours, easing, ink shapes, lighting (`night()` multiply darkness with punched light pools), grade and quarter-res bloom, and the puppet `draw_char()` (outfits, hair, hats, expressions, arm poses, walk cycle, plus `whole_angle`/`body_angle`/`head_angle` rotations about the pelvis). Fonts ship in `fonts/` (OFL/Apache).
+- `engine/actions.py`: the action engine. `normalize_action()` validates a story.json `action`; `sample_action()` turns it into per-frame rotation, offset, arm pose, expression and squash states (`collapse`, `fall_forward`, `fall_backward`, `slump_forward`, `get_up`). `Actor` applies it per character, `Crowd` applies one shared action to the whole group.
 - `engine/sets.py`: office, home, street, skyline, board, table, void, black and map sets, each with night, dusk and day versions.
 - `engine/props.py`: table documents and icons. Add a new icon as `ic_name(c, t, o)` drawn about 300 px wide around (0,0), and register it in `ICONS`.
 - `engine/fx.py`: pop labels, stamps, tags, lower thirds, typed cards, bubbles and badges.
