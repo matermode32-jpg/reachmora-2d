@@ -15,7 +15,9 @@ You don't write drawing code. You write a **`story.json` storyboard** (shot kind
 
 - **Original characters only.** Copy the *style*, never another channel's characters, logos, thumbnails, series names or videos shot for shot. Real people are generic puppets with a name tag, never a likeness. No brand mascots.
 - **Facts:** check the key facts of anything presented as true with a web search before pitching or scripting it. Tell the user which facts were not checked. Never invent statistics for charts or counters.
-- **Never edit the voice.** The picture follows the voiceover. Silent chapter cards shift it later in time; they never cut it.
+- **Never edit the words.** The picture follows the voiceover. Silent chapter cards shift it later in time; they never cut words. The one allowed voice edit is silence: always run `python3 -m engine trim <P>` after join — it removes only dead pauses (never a word) to the pacing table, adds 15 ms micro-fades, and re-aligns.
+- **No dead visual space.** Every shot keeps moving: the slow push-in always, plus a beat, label, prop, counter or camera event at least every 2-3 s — especially during pauses, when nothing on screen may sit still and empty. If a shot would show a bare background for more than ~3 s, add content to it or split the shot.
+- **Word-by-word motion subtitles are always on.** Captions run along the bottom of every spoken frame (default; `story.json` `"subs": false` only if the user asks): words pop in as they are spoken, the current word is lime with a pop, previous words stay cream. Never transcribe more than is spoken, never show text when the voice is silent, and keep labels/stamps/props above y≈900 so nothing collides with the caption band.
 - **Look before the long render.** Render contact sheets of every shot, look at them, fix problems, then do one full render.
 - You can't hear audio or watch playback. Verify through alignment numbers, frame checks and loudness readings, and tell the user to watch once for timing.
 - Keep the user informed with a task list. The 10-15 min renders take a while, so give progress updates.
@@ -57,10 +59,12 @@ Work through to the end without stopping. Ask only if something can't be resolve
 
 ### 4.1 Voiceover → timing
 - Copy the upload to `<P>/voice.<ext>` (mp3, wav or m4a). For several parts, run `python3 -m engine join <P> part1.mp3 part2.mp3 ...`, which writes `voice.wav`.
-- Run `python3 -m engine align <P>`. It reports `method=asr matched=NN%`. 85 % or more is normal; below 70 % usually means the recording differs from `script.txt` (ad-libs, a different draft), so ask for the final text. Very short sentences get flagged; that's fine.
+- Then **always** run `python3 -m engine trim <P>`. It aligns, cuts dead silence to the pacing table (within-sentence → 0.16 s, between sentences → 0.30 s, paragraph/scene → 0.55 s, pauses of 0.75-1.25 s kept as dramatic, head 0.25 s / tail 0.40 s, 15 ms micro-fades at every cut), keeps the untouched master at `work/voice_before_trim.wav`, and re-aligns automatically. Never skip this step; it removes only silence, never a word.
+- Run `python3 -m engine align <P>` only if you need to re-check timing after a manual edit. It reports `method=asr matched=NN%`. 85 % or more is normal; below 70 % usually means the recording differs from `script.txt` (ad-libs, a different draft), so ask for the final text. Very short sentences get flagged; that's fine.
 
 ### 4.2 Storyboard (`<P>/story.json`)
 Read `references/story-format.md` fully, and look at `examples/marshmallow/story.json` (a tested 2:20 video using every shot kind). Then run `python3 -m engine sentences <P>` and write `story.json`:
+- **Orientation first:** for a vertical video (Shorts, Reels, TikTok — 1080x1920) add `"orient": "portrait"` at the top level of `story.json` (or pass `--portrait` on the command line). Everything else stays the same: the engine keeps the 1920x1080 design space and reframes every shot into the 9:16 visible band automatically — characters, labels, stamps, icons, sets and captions all move inboard on their own. Story `x` values written for landscape are clamped into the band, so a landscape storyboard can be re-orientated by adding the one field. Default orientation is landscape (1920x1080). Check it before the first `stills`.
 - `cast`: 2-4 original characters with distinct silhouettes and colours.
 - `shots`: cover every sentence number once, in order, about one shot per 3-8 s (3 min ≈ 35 shots, 15 min ≈ 170). Follow the pacing rules at the end of the reference: rotate world shots and graphics, put every number on screen, a closeup after big claims, tags and lower thirds, chapter cards, and a polaroid ending.
 - Cue mid-shot events with **words from that shot's sentences** (`"at": "fortune"`).
@@ -72,21 +76,21 @@ Run `python3 -m engine plan <P>`. It prints the shot table (times, length, whips
 
 ### 4.4 Look check (before the long render)
 - Run `python3 -m engine stills <P>`. It writes contact sheets of every shot's mid-frame to `<P>/work/sheet_N.jpg` (24 per sheet). For a closer look: `--shots 3,8,12 --fracs .2,.6,.95`.
-- Open and look at every sheet. Common fixes: labels covering a face (move `x`/`y`), text too long (shorten it to 1-4 words), characters off frame in wides (`x` between 250 and 1670), the same kind twice in a row (swap one), an empty-looking graphic (add `labels` or a second icon).
+- Open and look at every sheet. Common fixes: labels covering a face (move `x`/`y`), text too long (shorten it to 1-4 words), characters off frame in wides (`x` between 250 and 1670), the same kind twice in a row (swap one), an empty-looking graphic (add `labels` or a second icon), anything sitting in the caption band below y≈900 (move it up), a shot that looks static and empty for more than ~3 s (add a beat, label or prop).
 - Send the sheet(s) to the user with a one-line summary, then start the render without waiting.
 
 ### 4.5 Render
 - Run `python3 -m engine render <P>` **in the background** (`run_in_background`, or `nohup ... > <P>/work/render.log 2>&1 &`) and check progress every few minutes. It prints `[done/total] ... ETA`. It uses all CPU cores but one, renders shots in parallel, and **resumes** after an interruption (finished shots are cached, so re-run the same command). If you change one shot, only that shot re-renders.
-- **Speed (measured, 8 cores):** 1080p takes about 3-4 minutes of rendering per minute of video, and `--res 720` about 2. Render time scales with cores: on 2 cores, expect about 3-4x that. Before starting, check `nproc` and estimate. If a 1080p render would take more than about 60-90 minutes (for example a 10-15 min video on a 2-4 core sandbox), tell the user the estimate and offer `--res 720` (1280x720: same look, half the time, fine for YouTube), and let them choose. Pass the same `--res` to `render`, `audio`, `final` and `all`. A 720p file gets a `_720p` suffix.
+- **Speed (measured, 8 cores):** 1080p takes about 3-4 minutes of rendering per minute of video, and `--res 720` about 2. Render time scales with cores: on 2 cores, expect about 3-4x that. Before starting, check `nproc` and estimate. If a 1080p render would take more than about 60-90 minutes (for example a 10-15 min video on a 2-4 core sandbox), tell the user the estimate and offer `--res 720` (1280x720: same look, half the time, fine for YouTube), and let them choose. Pass the same `--res` to `render`, `audio`, `final` and `all`. A 720p file gets a `_720p` suffix. Portrait projects render at 1080x1920 (720x1280 with `--res 720`); the segment cache is stored separately per orientation, so you can render both from one project.
 - To fix a few shots after the full render: edit `story.json`, run `render <P> --shots 12,13`, which also re-joins the video.
 
 ### 4.6 Sound + final
-- `python3 -m engine audio <P>` builds the music bed (original, synthesized from the `mood`, with an arrangement that changes every 8 bars), adds SFX from the shot events (pops on labels, thuds on stamps, whooshes on whips, paper on documents, ticks on counters, footsteps on walks, a boom under chapter cards, a shutter and sting on the polaroid), ducks the music under speech, and masters to about -14 to -15 LUFS. The voice is untouched. It prints the levels: music should read about -18 to -21 dB against the voice during speech (it rises in pauses). Use `--music-db -20` for a quieter bed or `--mood calm` to change the style.
+- `python3 -m engine audio <P>` builds the music bed (original, synthesized from the `mood`, with an arrangement that changes every 8 bars), adds SFX from the shot events (pops on labels, thuds on stamps, whooshes on whips, paper on documents, ticks on counters, footsteps on walks, a boom under chapter cards, a shutter and sting on the polaroid), ducks the music under speech, and masters to about -14 to -15 LUFS. The voice is untouched. Levels are locked to the user's targets: music reads about -18 to -24 dB against the voice during speech (it rises in pauses — the defaults land at about -20), SFX peak -8 to -14 dB vs the voice (default `--sfx-db -12`), and the printed `voice peak after gain` must sit in -3..-1 dBFS (the command warns otherwise). Use `--music-db -20` for a quieter bed or `--mood calm` to change the style.
 - `python3 -m engine final <P>` muxes `<P>/out/<title>.mp4`.
 - Or run everything after the storyboard is written: `python3 -m engine all <P>`.
 
 ### 4.7 Verify and deliver
-- `ffprobe` the MP4: 1920x1080, 30 fps, with a duration matching the voiceover plus chapter cards plus about 1 s.
+- `ffprobe` the MP4: 1920x1080 (landscape) or 1080x1920 (portrait), 30 fps, with a duration matching the voiceover plus chapter cards plus about 1 s. A portrait final is saved with a `_v` suffix (for example `final_v.mp4`), a 720p one with `_720p`, so versions never overwrite each other.
 - Pull 6-8 frames at cue moments (`ffmpeg -ss <t> -i out.mp4 -frames:v 1 f.jpg`) and look at them: is the label up, did the stamp land, is the mouth moving on dialogue.
 - Deliver the MP4 (SendUserFile, or the file path) with: the length, a few lines on the shots, the facts that weren't checked, and an offer of tweaks ("change any shot by number") or the next idea from the list. Remind them to watch once for timing.
 
@@ -98,6 +102,7 @@ Run `python3 -m engine plan <P>`. It prints the shot table (times, length, whips
 - `engine/fx.py`: pop labels, stamps, tags, lower thirds, typed cards, bubbles and badges.
 - `engine/shots.py`: shot kinds (`KINDS`). A new kind subclasses `Shot`, draws in `world()` (lit), `over()` (unlit overlay) and `screen()` (after the grade).
 - `engine/timing.py`: sentence splitting, ASR word timestamps aligned to the script, and the pause-based fallback. `engine/timeline.py`: shot times, cues and silent-card gaps.
+- `engine/trim.py`: dead-silence cutter (pacing table, 15 ms micro-fades, backup master); runs right after `join`, before storyboarding. `engine/subs.py`: word-by-word motion subtitles on the output clock, default on.
 - `engine/render.py`: camera, whips, shake, polaroid, parallel segment render, contact sheets. `engine/audio.py`: music, SFX, mix and loudness.
 - **Performance rule:** CPU skia is very slow at full-frame gradients, blend modes, colour filters, blur filters and rotated image draws (hundreds of ms per frame). Anything static goes into the per-shot caches built in `Shot.prepare()` (background, light map, glow map). Full-frame effects run in numpy (`finish`, `multiply_into`, `add_into`, `hblur` in `kit.py`). Per-frame drawing should be vector shapes and axis-aligned image blits only. Frame buffers are premultiplied native-format numpy arrays (`np_surface`); other formats trigger a slow conversion.
 

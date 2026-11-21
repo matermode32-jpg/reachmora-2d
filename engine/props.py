@@ -245,10 +245,84 @@ def ic_shopping(c, t, o):
     label(c, o.get('text', 'SALE'), 0, 70, 70, '#FFFFFF', font=MARKER, align='center', skew=0)
 
 
+def ic_plane(c, t, o):
+    c.save(); c.translate(0, 7 * math.sin(t * 2.2))
+    poly(c, [(-25, -52), (55, -115), (100, -115), (42, -50)], '#D8DCE4', LW * .8)      # far wing (behind)
+    poly(c, [(-118, -50), (-158, -122), (-96, -122), (-56, -52)], '#C8242C', LW)        # tail fin
+    b = skia.Path(); b.moveTo(-145, 18); b.cubicTo(-148, -22, -105, -48, -35, -50)
+    b.lineTo(92, -50); b.cubicTo(132, -50, 158, -26, 158, -4); b.cubicTo(158, 22, 128, 42, 86, 42)
+    b.lineTo(-88, 42); b.cubicTo(-128, 42, -146, 34, -145, 18); b.close()
+    shape(c, b, '#F4EFE2', LW)
+    poly(c, [(-40, 38), (48, 122), (104, 122), (38, 38)], '#C8242C', LW)               # near wing
+    for i in range(5): circ(c, -55 + i * 44, -16, 10, '#BFE3F2', LW * .5)              # windows
+    rect(c, 96, -34, 134, 6, '#C8242C', LW * .6, r=8)
+    c.restore()
+
+
+def ic_fire(c, t, o):
+    w = 1 + .05 * math.sin(t * 9); c.save(); c.scale(w, 1)
+    p = skia.Path(); p.moveTo(0, 138)
+    p.cubicTo(-95, 128, -122, 44, -64, -24)
+    p.cubicTo(-34, -60, -50, -104, -6, -150)
+    p.cubicTo(32, -110, 84, -66, 92, -8)
+    p.cubicTo(128, 46, 100, 128, 0, 138); p.close()
+    shape(c, p, '#F28B30', LW)
+    q = skia.Path(); q.moveTo(0, 132)
+    q.cubicTo(-52, 118, -62, 58, -28, 12)
+    q.cubicTo(-8, -18, -18, -54, 10, -88)
+    q.cubicTo(44, -48, 66, -8, 60, 30)
+    q.cubicTo(88, 92, 48, 128, 0, 132); q.close()
+    shape(c, q, '#FFD75A', LW * .8)
+    c.restore()
+    rect(c, -130, 132, 130, 168, '#8A5A34', LW, r=16)
+    line(c, -60, 136, -30, 164, LW * .7, '#5E3A20'); line(c, 40, 136, 70, 164, LW * .7, '#5E3A20')
+
+
+def ic_ship(c, t, o):
+    c.save(); c.translate(0, 5 * math.sin(t * 1.8))
+    for i, col in enumerate(('#E8B84A', '#3E9A56', '#C8242C', '#2F6B9A')):
+        rect(c, -124 + i * 62, -34, -68 + i * 62, 30, col, LW * .7)                    # containers
+    rect(c, 74, -104, 148, 30, '#F4EFE2', LW)                                          # bridge
+    for r in range(2):
+        for i in range(3): rect(c, 84 + i * 22, -92 + r * 30, 102 + i * 22, -70 + r * 30, '#BFE3F2', LW * .5)
+    line(c, -44, -34, -44, -124, LW * .9); poly(c, [(-44, -124), (24, -106), (-44, -88)], '#F4EFE2', LW * .7)
+    h = skia.Path(); h.moveTo(-165, 30); h.lineTo(165, 30); h.lineTo(128, 118)
+    h.cubicTo(124, 142, 96, 152, 58, 152); h.lineTo(-92, 152); h.cubicTo(-136, 152, -160, 132, -165, 30); h.close()
+    shape(c, h, '#3B4660', LW); rect(c, -165, 30, 165, 62, '#C8242C', LW * .8)
+    c.restore()
+    for (x0, x1, y) in ((-170, -40, 168), (-10, 110, 176), (80, 175, 166)):            # water
+        w = skia.Path(); w.moveTo(x0, y); w.cubicTo(x0 + (x1 - x0) * .3, y - 18, x0 + (x1 - x0) * .6, y + 14, x1, y - 4)
+        c.drawPath(w, ink(LW * .9, '#2F6B9A'))
+
+
+def ic_wave(c, t, o):
+    p = skia.Path(); p.moveTo(-165, 150)
+    p.cubicTo(-145, 45, -65, -15, 35, -28)
+    p.cubicTo(115, -38, 148, -108, 88, -142)
+    p.cubicTo(118, -108, 102, -72, 58, -60)
+    p.cubicTo(8, -46, -62, 12, -92, 92)
+    p.cubicTo(-112, 128, -140, 146, -165, 150); p.close()
+    shape(c, p, '#4FA3C9', LW)
+    for (x, y, r) in ((58, -96, 20), (86, -66, 16), (28, -46, 14)): circ(c, x, y, r, '#F4EFE2', LW * .7)
+    for (x, y, r) in ((112, -138, 11), (140, -104, 9), (74, -166, 9)): circ(c, x, y, r, '#BFE3F2', LW * .6)
+    rect(c, -165, 150, 165, 184, '#2F6B9A', LW, r=10)
+    for x0 in (-150, -20, 110):
+        w = skia.Path(); w.moveTo(x0, 168); w.cubicTo(x0 + 30, 156, x0 + 60, 180, x0 + 95, 166)
+        c.drawPath(w, ink(LW * .7, '#9FD4E8'))
+
+
+def ic_cross(c, t, o):
+    rect(c, -145, -145, 145, 145, '#F4EFE2', LW, r=40)
+    v = skia.Path(); v.addRRect(skia.RRect.MakeRectXY(skia.Rect(-34, -105, 34, 105), 14, 14))
+    h = skia.Path(); h.addRRect(skia.RRect.MakeRectXY(skia.Rect(-105, -34, 105, 34), 14, 14))
+    shape(c, skia.Op(v, h, skia.PathOp.kUnion_PathOp), '#C8242C', LW)
+
+
 ICONS = dict(bulb=ic_bulb, brain=ic_brain, clock=ic_clock, moneybag=ic_moneybag, coins=ic_coins, house=ic_house, trophy=ic_trophy,
              heart=ic_heart, lock=ic_lock, hourglass=ic_hourglass, warning=ic_warning, laptop=ic_laptop, gift=ic_gift, book=ic_book,
              phone=ic_phone, chart_up=lambda c, t, o: ic_chart(c, t, o, True), chart_down=lambda c, t, o: ic_chart(c, t, o, False),
-             calendar=ic_calendar, target=ic_target, car=ic_car, money=ic_money, marshmallow=ic_marshmallow, shopping=ic_shopping)
+             calendar=ic_calendar, target=ic_target, car=ic_car, money=ic_money, marshmallow=ic_marshmallow, shopping=ic_shopping,
+             plane=ic_plane, fire=ic_fire, ship=ic_ship, wave=ic_wave, cross=ic_cross)
 
 
 def draw_prop(c, name, x, y, s, t, rot=0, **o):

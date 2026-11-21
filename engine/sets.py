@@ -160,18 +160,19 @@ def set_office(c, o):
     for i in range(1, 9): c.drawLine(-900, 820 + i * i * 6.5, W + 900, 820 + i * i * 6.5, ink(3, '#553520'))
     line(c, -900, 820, W + 900, 820, LW)
     win = window(c, 150, 96, 800, 640, time, seed=o.get('seed', 5))
-    frame_pic(c, 990, 190); wall_clock(c, 1330, 250); calendar(c, 1500, 170, *(o.get('calendar', 'MAY 12').split(' ', 1) + ['12'])[:2])
-    rect(c, 1430, 560, 1610, 800, '#7A2228', LW, r=26)
+    frame_pic(c, 990, 190); wall_clock(c, 1180 if PORT else 1330, 250)
+    calendar(c, 1290 if PORT else 1500, 170, *(o.get('calendar', 'MAY 12').split(' ', 1) + ['12'])[:2])
+    if not PORT: rect(c, 1430, 560, 1610, 800, '#7A2228', LW, r=26)
     c.drawOval(skia.Rect(1160, 1030, 1900, 1090), fp((0, 0, 0), 70, blur=14)); rect(c, 1230, 800, 1850, 1062, '#6E4426', LW)
     for (dx0, dx1) in ((1262, 1520), (1560, 1818)):
         rect(c, dx0, 836, dx1, 930, '#7C4E2C', LW * .7); circ(c, (dx0 + dx1) / 2, 883, 9, '#D0A548', LW * .6)
         rect(c, dx0, 956, dx1, 1040, '#7C4E2C', LW * .7); circ(c, (dx0 + dx1) / 2, 998, 9, '#D0A548', LW * .6)
     rect(c, 1196, 770, 1884, 802, '#8E5C36', LW); c.drawRect(skia.Rect(1250, 773, 1830, 782), fp('#2F6B45'))
-    banker_lamp(c, 1740, 770)
+    if not PORT: banker_lamp(c, 1740, 770)
     if o.get('era', 'modern') == 'old': old_phone(c, 1320, 770)
-    else: monitor(c, 1440, 770)
+    else: monitor(c, 1270 if PORT else 1440, 770)
     for k in range(3): rect(c, 1260 + k * 5, 752 - k * 6, 1380 + k * 5, 764 - k * 6, '#F7F3E8', LW * .6)
-    plant(c, 60, 1000, .9); rug(c, 560, 930, 1360, 1070)
+    plant(c, 540 if PORT else 60, 1000, .9); rug(c, 560, 930, 1360, 1070)
     spill = skia.Path.Polygon([(190, 700), (760, 700), (1040, 1090), (330, 1090)], True)
     return dict(floor=1024, ambient=AMBIENT[time],
                 lights=[('pool', 1740, 720, 600, .95), ('pool', 1000, 560, 430, .92), ('oval', 1000, 1000, 380, 110, .7), ('path', win, .82, 10), ('path', spill, .36, 34)],
@@ -189,41 +190,50 @@ def set_home(c, o):
     line(c, -900, 840, W + 900, 840, LW)
     win = window(c, 1180, 130, 1700, 600, time, frame='#E8E0D0', seed=o.get('seed', 8), curtains='#3F7A8C')
     # bookshelf
-    rect(c, 120, 200, 520, 820, '#6A4428', LW)
-    r = random.Random(3)
-    for k in range(4):
-        y = 230 + k * 150; rect(c, 140, y + 128, 500, y + 142, '#5A3824', LW * .6); x = 152
-        while x < 480:
-            w = r.uniform(22, 40); h = r.uniform(80, 120); rect(c, x, y + 128 - h, x + w, y + 128, r.choice(['#C8242C', '#2F6B9A', '#D0A548', '#3E9A56', '#E8E0D0', '#7A4A8A']), LW * .5); x += w + 4
+    if not PORT:
+        rect(c, 120, 200, 520, 820, '#6A4428', LW)
+        r = random.Random(3)
+        for k in range(4):
+            y = 230 + k * 150; rect(c, 140, y + 128, 500, y + 142, '#5A3824', LW * .6); x = 152
+            while x < 480:
+                w = r.uniform(22, 40); h = r.uniform(80, 120); rect(c, x, y + 128 - h, x + w, y + 128, r.choice(['#C8242C', '#2F6B9A', '#D0A548', '#3E9A56', '#E8E0D0', '#7A4A8A']), LW * .5); x += w + 4
     # sofa
     c.drawOval(skia.Rect(620, 1020, 1300, 1080), fp((0, 0, 0), 70, blur=14))
     rect(c, 640, 760, 1280, 900, '#C2563A', LW, r=30); rect(c, 610, 840, 700, 1040, '#C2563A', LW, r=26); rect(c, 1220, 840, 1310, 1040, '#C2563A', LW, r=26)
     rect(c, 690, 880, 1230, 1000, '#D8694A', LW, r=20); line(c, 960, 885, 960, 995, LW * .7)
     # floor lamp
-    line(c, 1500, 1040, 1500, 640, 14, INK); line(c, 1500, 1040, 1500, 640, 7, '#D0A548'); oval(c, 1440, 1030, 1560, 1052, '#2B2D3C', LW * .7)
-    poly(c, [(1430, 640), (1570, 640), (1540, 540), (1460, 540)], '#FFF0C8', LW)
-    plant(c, 1800, 1010, 1.0); rug(c, 520, 980, 1420, 1120, '#3F6E8C')
+    lx = 1360 if PORT else 1500
+    line(c, lx, 1040, lx, 640, 14, INK); line(c, lx, 1040, lx, 640, 7, '#D0A548'); oval(c, lx - 60, 1030, lx + 60, 1052, '#2B2D3C', LW * .7)
+    poly(c, [(lx - 70, 640), (lx + 70, 640), (lx + 40, 540), (lx - 40, 540)], '#FFF0C8', LW)
+    if not PORT: plant(c, 1800, 1010, 1.0)
+    rug(c, 520, 980, 1420, 1120, '#3F6E8C')
     return dict(floor=1030, ambient=AMBIENT[time],
-                lights=[('pool', 1500, 640, 640, .95), ('pool', 960, 640, 520, .8), ('path', win, .8, 10), ('oval', 960, 1030, 520, 120, .6)],
-                bulbs=[(1500, 600, 360, '#FFD98A', 80)], spots=[(800, 1030), (1120, 1030), (1450, 1030)])
+                lights=[('pool', lx, 640, 640, .95), ('pool', 960, 640, 520, .8), ('path', win, .8, 10), ('oval', 960, 1030, 520, 120, .6)],
+                bulbs=[(lx, 600, 360, '#FFD98A', 80)], spots=[(800, 1030), (1120, 1030), (1380 if PORT else 1450, 1030)])
 
 
 def set_street(c, o):
     time = o.get('time', 'night'); sky(c, time, 760)
-    if time == 'night': stars(c); moon(c, 1500, 150, 36); cloud(c, 700, 220, 1.0)
-    elif time == 'day': sun(c, 1560, 160); cloud(c, 500, 210, 1.2, '#FFFFFF', 235); cloud(c, 1200, 300, .9, '#FFFFFF', 220)
+    if time == 'night': stars(c); moon(c, 1360 if PORT else 1500, 150, 36); cloud(c, 700, 220, 1.0)
+    elif time == 'day': sun(c, 1350 if PORT else 1560, 160); cloud(c, 500, 210, 1.2, '#FFFFFF', 235); cloud(c, 1200, 300, .9, '#FFFFFF', 220)
     else: cloud(c, 700, 260, 1.1, '#E58A7A')
     blur_begin(c, 2.0); far_city(c, 660, time, 8); c.restore()
-    for (x, w, h, sd) in ((-90, 300, 500, 21), (210, 240, 410, 22), (1660, 250, 400, 24), (1900, 260, 470, 25)):
+    for (x, w, h, sd) in ((-90, 300, 500, 21), (420 if PORT else 210, 240, 410, 22), (1660, 250, 400, 24), (1900, 260, 470, 25)):
         block(c, x, w, h, 760, sd, time, lit=.34)
     shop = o.get('shop', 'CAFE'); awn = o.get('awning', '#C8242C')
-    rect(c, 1090, 470, 1660, 760, '#4A3550' if time != 'day' else '#B9876A', LW)
-    rect(c, 1140, 560, 1380, 720, '#F6DE96' if time != 'day' else '#BFE3F2', LW); line(c, 1260, 560, 1260, 720, LW * .7)
-    rect(c, 1440, 540, 1580, 760, '#6A4428', LW); circ(c, 1558, 660, 7, '#D0A548', LW * .5)
-    aw = poly(c, [(1070, 470), (1680, 470), (1710, 540), (1040, 540)], awn, LW)
+    if PORT:
+        sx0, sx1 = 950, 1520; wx0, wx1 = 1000, 1240; dx0, dx1 = 1300, 1440; hx_ = 1418
+        ax0, ax1, ax2 = 930, 1540, 1570; astr0 = 900; slabel, sfit = 1140, 440
+    else:
+        sx0, sx1 = 1090, 1660; wx0, wx1 = 1140, 1380; dx0, dx1 = 1440, 1580; hx_ = 1558
+        ax0, ax1, ax2 = 1070, 1680, 1710; astr0 = 1040; slabel, sfit = 1375, 520
+    rect(c, sx0, 470, sx1, 760, '#4A3550' if time != 'day' else '#B9876A', LW)
+    rect(c, wx0, 560, wx1, 720, '#F6DE96' if time != 'day' else '#BFE3F2', LW); line(c, (wx0 + wx1) / 2, 560, (wx0 + wx1) / 2, 720, LW * .7)
+    rect(c, dx0, 540, dx1, 760, '#6A4428', LW); circ(c, hx_, 660, 7, '#D0A548', LW * .5)
+    aw = poly(c, [(ax0, 470), (ax1, 470), (ax2, 540), (astr0, 540)], awn, LW)
     c.save(); c.clipPath(aw, doAntiAlias=True)
-    for i in range(0, 14, 2): c.drawPath(skia.Path.Polygon([(1070 + i * 46, 470), (1116 + i * 46, 470), (1092 + i * 48, 540), (1044 + i * 48, 540)], True), fp('#F4EFE2'))
-    c.restore(); c.drawPath(aw, ink(LW)); label(c, shop, 1375, 452, fit_size(shop, 60, 520), '#F6DE96', align='center', stroke=8, skew=-0.1)
+    for i in range(0, 14, 2): c.drawPath(skia.Path.Polygon([(ax0 + i * 46, 470), (ax0 + 46 + i * 46, 470), (ax0 + 22 + i * 48, 540), (astr0 + 4 + i * 48, 540)], True), fp('#F4EFE2'))
+    c.restore(); c.drawPath(aw, ink(LW)); label(c, shop, slabel, 452, fit_size(shop, 60, sfit), '#F6DE96', align='center', stroke=8, skew=-0.1)
     pav, road = ('#444B70', '#30365A') if time != 'day' else ('#B8B2A8', '#8C8A90')
     c.drawRect(skia.Rect(-900, 760, W + 900, 840), fp(pav)); line(c, -900, 760, W + 900, 760, LW); line(c, -900, 840, W + 900, 840, LW)
     c.drawRect(skia.Rect(-900, 840, W + 900, H + 600), fp(road)); r = random.Random(4)
@@ -234,15 +244,16 @@ def set_street(c, o):
             c.drawRRect(skia.RRect.MakeRectXY(skia.Rect(xx, yy, xx + wd, yy + 24 + row * 2), 10, 10), fp(shade(road, 1.12) if r.random() < .7 else shade(road, 1.25)))
     street_lamp(c, 560, 842, 330); cone = cone_path(560, 300, 80, 760, 780, lean=110)
     return dict(floor=1000, ambient=dict(night='#5A69B6', dusk=AMBIENT['dusk'], day=AMBIENT['day'])[time],
-                lights=[('path', cone, .92, 24), ('oval', 690, 1000, 520, 120, .85), ('pool', 1260, 640, 380, .9), ('pool', 960, 560, 420, .5)],
-                bulbs=[(560, 290, 130, '#FFF0B4', 170), (1260, 640, 360, '#FFD98A', 44)], cone=cone, spots=[(400, 1000), (860, 1000), (1300, 1000)])
+                lights=[('path', cone, .92, 24), ('oval', 690, 1000, 520, 120, .85), ('pool', 1120 if PORT else 1260, 640, 380, .9), ('pool', 960, 560, 420, .5)],
+                bulbs=[(560, 290, 130, '#FFF0B4', 170), (1120 if PORT else 1260, 640, 360, '#FFD98A', 44)], cone=cone,
+                spots=[(560 if PORT else 400, 1000), (860, 1000), (1300, 1000)])
 
 
 def set_skyline(c, o):
     time = o.get('time', 'night'); sky(c, time, 900)
-    if time == 'night': stars(c); moon(c, 1570, 190)
-    elif time == 'day': sun(c, 1560, 180, 70)
-    for (x, y, s_) in ((380, 250, 1.5), (1250, 360, 1.1), (1760, 470, .9)):
+    if time == 'night': stars(c); moon(c, 1360 if PORT else 1570, 190)
+    elif time == 'day': sun(c, 1350 if PORT else 1560, 180, 70)
+    for (x, y, s_) in ((640 if PORT else 380, 250, 1.5), (1250, 360, 1.1), (1400 if PORT else 1760, 470, .9)):
         cloud(c, x, y, s_, dict(night='#2C3B80', dusk='#E58A7A', day='#FFFFFF')[time], 230)
     blur_begin(c, 2.2); far_city(c, 800, time, o.get('seed', 3)); c.restore()
     for (x, w, h, sd) in ((-60, 250, 300, 1), (190, 210, 380, 2), (400, 250, 250, 3), (650, 170, 460, 9), (840, 230, 560, 6), (1090, 190, 420, 7),
@@ -263,13 +274,14 @@ def set_board(c, o):
     for i in range(-14, 48): c.drawLine(i * 62, -600, i * 62, 900, ink(8, stripe))
     c.drawRect(skia.Rect(-900, 900, W + 900, H + 600), fp('#7A5236')); line(c, -900, 900, W + 900, 900, LW)
     kind = o.get('board', 'chalk'); bc = '#2F5A46' if kind == 'chalk' else '#F8F8F2'
-    rect(c, 240, 110, 1680, 800, '#8E5C36', LW, r=8); rect(c, 270, 140, 1650, 770, bc, LW * .7)
+    outer, inner = ((530, 110, 1410, 800), (560, 140, 1380, 770)) if PORT else ((240, 110, 1680, 800), (270, 140, 1650, 770))
+    rect(c, *outer, '#8E5C36', LW, r=8); rect(c, *inner, bc, LW * .7)
     if kind == 'chalk':
         r = random.Random(2)
-        for _ in range(40): c.drawCircle(r.uniform(290, 1630), r.uniform(160, 750), r.uniform(20, 70), fp('#FFFFFF', 6))
-    rect(c, 300, 800, 1620, 824, '#A87A50', LW * .7)
-    return dict(floor=1060, ambient=AMBIENT[time], lights=[('pool', 960, 460, 1100, .9)], bulbs=[], board=(270, 140, 1650, 770),
-                chalk=(kind == 'chalk'), spots=[(160, 1060), (1780, 1060)])
+        for _ in range(40): c.drawCircle(r.uniform(inner[0] + 20, inner[2] - 20), r.uniform(160, 750), r.uniform(20, 70), fp('#FFFFFF', 6))
+    rect(c, inner[0] + 30, 800, inner[2] - 30, 824, '#A87A50', LW * .7)
+    return dict(floor=1060, ambient=AMBIENT[time], lights=[('pool', 960, 460, 1100, .9)], bulbs=[], board=inner,
+                chalk=(kind == 'chalk'), spots=[(560 if PORT else 160, 1060), (1400 if PORT else 1780, 1060)])
 
 
 def set_table(c, o):

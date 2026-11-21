@@ -2,11 +2,14 @@
 
   sentences <P> [--minutes M]   number the sentences of P/script.txt (use these indices in story.json)
   join      <P> a.mp3 b.mp3 ..  join voiceover parts into P/voice.wav (0.45 s pauses)
+  trim      <P>                 cut dead silence from the voice to the pacing table, then re-align
+                                (aligns first if needed; keeps work/voice_before_trim.wav as the master)
   align     <P>                 voice.* + script.txt -> P/timing.json (word-level timing)
   plan      <P>                 check story.json against the timing; print the shot table
   stills    <P> [--shots 0,5,9] [--fracs .3,.7]   contact sheets in P/work/sheet_*.jpg
-  render    <P> [--jobs N] [--shots ...] [--res 720]   render shot segments (resumable) + concat
-            (--res 720 = fast 1280x720 draft/final; the default is 1920x1080. Use the same --res for final.)
+  render    <P> [--jobs N] [--shots ...] [--res 720] [--portrait]  render shot segments (resumable) + concat
+            (--res 720 = fast 720-draft; the default is 1080. Use the same --res for final.
+             --portrait = 9:16 vertical 1080x1920; also read from story.json "orient": "portrait")
   audio     <P> [--mood M]      music + SFX + mix + loudness -> P/work/mix.wav
   final     <P> [--title T]     mux -> P/out/<title>.mp4
   all       <P>                 align (if needed), plan, render, audio, final
@@ -26,10 +29,32 @@ def arg(name, default=None):
 def ints(s): return [int(x) for x in s.split(",")] if s else None
 
 
+def run_align(P):
+    import time
+    from .timing import sentences, align
+    from .render import voice_path
+    ss = sentences(open(os.path.join(P, "script.txt"), encoding="utf-8").read()); t = time.time()
+    T = align(ss, voice_path(P))
+    json.dump(T, open(os.path.join(P, "timing.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    print(f"aligned {len(T['sentences'])} sentences, {T['duration']:.1f} s of voice, method={T['method']} matched={T['matched']:.0%} ({time.time() - t:.0f}s)")
+    if T["method"] == "fallback": print("WARNING: no speech model; timing is estimated from pauses. Check the plan carefully.")
+    bad = [s for s in T["sentences"] if s["end"] - s["start"] < .25]
+    if bad: print("very short sentences (check):", [s["i"] for s in bad])
+    return T
+
+
 def main():
     if len(sys.argv) < 3: print(__doc__); return
     cmd, P = sys.argv[1], os.path.abspath(sys.argv[2])
     if arg("--res"): os.environ["RM_RES"] = arg("--res")  # must be set before the kit is imported (workers inherit it)
+    # orientation, same rule: set before the kit is imported; the flag wins, else story.json decides
+    if arg("--portrait"): os.environ["RM_ORIENT"] = "portrait"
+    else:
+        try:
+            if str(json.load(open(os.path.join(P, "story.json"), encoding="utf-8")).get("orient", "")).lower().startswith("port"):
+                os.environ["RM_ORIENT"] = "portrait"
+        except Exception:
+            pass
     from .timing import sentences, align
     if cmd == "join":  # join numbered voice parts into P/voice.wav with 0.45 s pauses
         import subprocess
@@ -47,14 +72,13 @@ def main():
         ss = sentences(open(os.path.join(P, "script.txt"), encoding="utf-8").read()); nw = sum(len(s.split()) for s in ss)
         for i, s in enumerate(ss): print(f"{i:3d}  {s}")
         print(f"\n{len(ss)} sentences, {nw} words, about {nw / 150:.1f} min at 150 wpm ({nw / 140:.1f}-{nw / 160:.1f} min)"); return
+    if cmd == "trim":
+        if not os.path.exists(os.path.join(P, "timing.json")):
+            print("no timing.json yet - aligning first..."); run_align(P)
+        from .trim import trim as trim_voice
+        trim_voice(P); run_align(P); return
     if cmd in ("align", "all") and (cmd == "align" or not os.path.exists(os.path.join(P, "timing.json"))):
-        from .render import voice_path
-        ss = sentences(open(os.path.join(P, "script.txt"), encoding="utf-8").read()); t = time.time()
-        T = align(ss, voice_path(P)); json.dump(T, open(os.path.join(P, "timing.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
-        print(f"aligned {len(T['sentences'])} sentences, {T['duration']:.1f} s of voice, method={T['method']} matched={T['matched']:.0%} ({time.time() - t:.0f}s)")
-        if T["method"] == "fallback": print("WARNING: no speech model; timing is estimated from pauses. Check the plan carefully.")
-        bad = [s for s in T["sentences"] if s["end"] - s["start"] < .25]
-        if bad: print("very short sentences (check):", [s["i"] for s in bad])
+        run_align(P)
         if cmd == "align": return
     if cmd in ("plan", "all"):
         from .render import load_project, whip_flags
@@ -80,7 +104,7 @@ def main():
         if cmd == "render": return
     if cmd in ("audio", "all"):
         from .audio import build, loudness
-        raw = build(P, arg("--mood"), float(arg("--music-db", -17)), float(arg("--sfx-db", -9)))
+        raw = build(P, arg("--mood"), float(arg("--music-db", -17)), float(arg("--sfx-db", -12)))
         loudness(raw, os.path.join(P, "work", "mix.wav"))
         if cmd == "audio": return
     if cmd in ("final", "all"):

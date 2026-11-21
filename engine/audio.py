@@ -130,7 +130,7 @@ SFX = dict(pop=lambda: popfx(rng.uniform(320, 440)), thud=thud, whoosh=lambda: w
            boom=boom, ding=ding, paper=paper, step=step, sting=sting)
 
 
-def build(P, mood=None, music_db=-17.0, sfx_db=-9.0):
+def build(P, mood=None, music_db=-17.0, sfx_db=-12.0):
     from .render import setup, _G, whip_flags
     from .shots import build as build_shot
     setup(P); tl = _G["tl"]; story = _G["story"]; mood = mood or story.get("mood", "mystery")
@@ -180,13 +180,29 @@ def loudness(src, dst, target=-14.0):
     if not m: raise SystemExit("loudness measurement failed:\n" + r.stderr[-800:])
     js = json.loads(m[-1]); gain = target - float(js["input_i"])
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-af", f"volume={gain:.2f}dB,alimiter=limit=0.84:level=false", "-ar", str(SR), dst], check=True)
-    print(f"loudness: input {js['input_i']} LUFS -> gain {gain:+.1f} dB"); return dst
+    print(f"loudness: input {js['input_i']} LUFS -> gain {gain:+.1f} dB")
+    try:  # where the voice itself lands in the final audio, after the same gain + limiter (target: -3 .. -1 dBFS)
+        import numpy as np, soundfile as sf
+        stem = os.path.join(os.path.dirname(os.path.abspath(src)), "stem_voice.wav")
+        tmp = dst + ".vpk.wav"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", stem, "-af",
+                        f"volume={gain:.2f}dB,alimiter=limit=0.84:level=false", "-ar", str(SR), tmp], check=True)
+        v, _ = sf.read(tmp, dtype="float32")
+        os.remove(tmp)
+        pk = 20 * np.log10(np.abs(v).max() + 1e-9)
+        print(f"voice peak in final: {pk:+.1f} dBFS (target -3..-1)")
+        if pk > -1.0 or pk < -3.2:
+            print("WARNING: voice peak outside the -3..-1 target; check the source level")
+    except Exception:
+        pass
+    return dst
 
 
 def mux(P, title="final"):
     v = os.path.join(P, "work", "video.mp4"); a = os.path.join(P, "work", "mix.wav")
     safe = re.sub(r"[^A-Za-z0-9_-]+", "_", title).strip("_") or "final"; os.makedirs(os.path.join(P, "out"), exist_ok=True)
     if os.environ.get("RM_RES", "1080") != "1080": safe += f"_{os.environ['RM_RES']}p"
+    if os.environ.get("RM_ORIENT", "").lower().startswith("port"): safe += "_v"
     out = os.path.join(P, "out", f"{safe}.mp4")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", v, "-i", a, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", "-movflags", "+faststart", out], check=True)
     print("final ->", out); return out

@@ -23,7 +23,8 @@ def stamp(c, txt, x, y, u, rot=-10, size=150, v=RED, max_w=1100):
     label(c, txt, 0, 0, size, v, font=MARKER, align='center', skew=0, alpha=a); c.restore()
 
 
-def tag(c, s, u, x=70, y=H - 86):
+def tag(c, s, u, x=None, y=H - 86):
+    if x is None: x = VX0 + 10 if PORT else 70
     a = ease_out(u * 3)
     if a <= 0: return
     w = text_w(s, 44); c.save(); c.translate(-50 * (1 - a), 0)
@@ -42,13 +43,13 @@ def lower_third(c, name, sub, u, x=90, y=930):
 
 def typed(c, text, t, t0, dur, size=140, color='#FFFFFF', y=None, max_w=1640, font=None):
     """White handwriting typed word by word between t0 and t0+dur, centred, wraps to 2-3 lines."""
-    font = font or FONT_HAND; lines = wrap(text, size, max_w, font)
+    font = font or FONT_HAND; max_w = min(max_w, VW - 80); lines = wrap(text, size, max_w, font)
     while len(lines) > 3 and size > 60: size *= .88; lines = wrap(text, size, max_w, font)
     words = text.split(); tot = sum(len(w) + 1 for w in words); acc = 0; k = 0
     for w in words:
         if t >= t0 + dur * acc / tot - .04: k += 1
         acc += len(w) + 1
-    f = skia.Font(font, size); lh = size * 1.12; y0 = (H / 2 if y is None else y) - lh * (len(lines) - 1) / 2 + size * .32; shown = 0
+    f = skia.Font(font, size); lh = size * 1.12; y0 = (VCY if y is None else y) - lh * (len(lines) - 1) / 2 + size * .32; shown = 0
     for i, ln in enumerate(lines):
         lw_ = ln.split(); n = max(0, min(len(lw_), k - shown)); shown += len(lw_)
         if n: c.drawString(" ".join(lw_[:n]), W / 2 - f.measureText(ln) / 2, y0 + i * lh, f, fp(color))

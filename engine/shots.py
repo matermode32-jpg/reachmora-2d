@@ -7,7 +7,7 @@ from .sets import SETS, block
 from .props import DOCS, draw_prop, sleeve, bills, arrow
 from .fx import poplabel, stamp, tag, lower_third, typed, ring, bubble, number_badge
 
-PADX, PADY = 420, 260
+PADX, PADY = 420, (460 if PORT else 260)   # bg cache padding: portrait band top (y=-411) must be covered
 LABEL_SLOTS = [(330, -5), (560, 4), (780, -3), (200, 5)]
 
 
@@ -24,6 +24,7 @@ class Actor:
                             + [dict(b, t=shot.cue(b.get("at"))) for b in d.get("beats", [])], key=lambda b: b["t"])
         self.talk = shot.tl.talk_spans(shot.sh, d.get("talk", shot.spec.get("talk") if shot.spec.get("who") == d["id"] else None))
         self.walk = d.get("walk"); self.enter = d.get("enter"); self.exit = d.get("exit")
+        if PORT and not self.walk: self.x = min(max(self.x, VX0 + 110), VX1 - 110)   # static characters stay inside the portrait band
         self.head = (self.x, self.y - 420 * self.s)
 
     def state(self, t):
@@ -135,27 +136,33 @@ class Shot:
     def world_props(self, c, t):
         for p in self.spec.get("props", []):
             tt = self.cue(p.get("at"), 0); u = K(t, tt, .35)
-            if t >= tt: draw_prop(c, p["icon"], p.get("x", 1500), p.get("y", 760), p.get("s", .6) * back(u, 1.5), t, rot=p.get("rot", 0), **{k: v for k, v in p.items() if k not in ("icon", "x", "y", "s", "at", "rot")})
+            if t >= tt: draw_prop(c, p["icon"], p.get("x", 1320 if PORT else 1500), p.get("y", 760), p.get("s", .6) * back(u, 1.5), t, rot=p.get("rot", 0), **{k: v for k, v in p.items() if k not in ("icon", "x", "y", "s", "at", "rot")})
 
     def over(self, c, t):
         for L in self.labels:
-            font = MARKER if L.get("font") == "marker" else None; x = L.get("x", self.label_x()); mw = max(400, min(1500, 2 * min(x, W - x) - 140))
+            font = MARKER if L.get("font") == "marker" else None; x = L.get("x", self.label_x())
+            if PORT: x = min(max(x, VX0 + 260), VX1 - 260)     # story-authored x (landscape) must fit the band
+            mw = max(400, min(1500, 2 * min(x - VX0, VX1 - x) - 140))
             poplabel(c, L["text"], x, L["y"], t - L["t"], L.get("size", 120), colr(L.get("color"), LIME if len(self.labels) < 2 or self.labels.index(L) % 2 else CREAM), L["rot"], font, max_w=mw)
         if self.stamp:
-            s = self.stamp; x = s.get("x", self.label_x()); mw = max(400, min(1100, 2 * min(x, W - x) - 260))
+            s = self.stamp; x = s.get("x", self.label_x())
+            if PORT: x = min(max(x, VX0 + 260), VX1 - 260)
+            mw = max(400, min(1100, 2 * min(x - VX0, VX1 - x) - 260))
             stamp(c, s["text"], x, s.get("y", 640 if self.labels else 420), (t - s["t"]) / .9, s.get("rot", -9), s.get("size", 130), colr(s.get("color"), RED), max_w=mw)
         b = self.spec.get("bubble")
         if b:
             a = self.actor(b.get("who")); tb = self.cue(b.get("at"), .1)
             hx_, hy_ = (a.head if a else (960, 600)); bx = b.get("x", hx_ + (380 if hx_ < 1000 else -380)); by = b.get("y", max(220, hy_ - 260))
+            if PORT: bx = min(max(bx, VX0 + 300), VX1 - 300)   # keep the bubble inside the portrait band
             bubble(c, bx, by, b.get("w", 560), b.get("h", 360), t - tb, b.get("text"), b.get("icon"), (hx_ + (60 if bx > hx_ else -60), hy_ - 60), t, b.get("thought", True))
 
     def screen(self, c, t):
         if self.spec.get("tag"): tag(c, self.spec["tag"], (t - self.t0 - .2) / 1.0)
         lt = self.spec.get("lower_third")
-        if lt: lower_third(c, lt["name"], lt.get("sub", ""), t - self.cue(lt.get("at"), .15), lt.get("x", 90), lt.get("y", 930))
+        if lt: lower_third(c, lt["name"], lt.get("sub", ""), t - self.cue(lt.get("at"), .15), lt.get("x", VX0 + 10 if PORT else 90), lt.get("y", 930))
 
     def label_x(self):
+        if PORT: return 960                      # portrait: labels centre in the band
         xs = [a.x for a in self.actors]
         if not xs: return 1420
         return 1440 if sum(xs) / len(xs) < 960 else 480
@@ -183,7 +190,10 @@ class Wide(Shot):
         super().__init__(*a); self.setname = self.setname or "office"
         floor = {"office": 1024, "home": 1030, "street": 1000, "skyline": 1000, "board": 1060, "void": 1010}.get(self.setname, 1010)
         chars = self.spec.get("chars", [])
-        default_x = {1: [1000], 2: [700, 1250], 3: [520, 960, 1400]}.get(len(chars), [300 + i * 300 for i in range(len(chars))])
+        if PORT:
+            default_x = {1: [960], 2: [700, 1250], 3: [620, 960, 1300]}.get(len(chars), [600 + i * 240 for i in range(len(chars))])
+        else:
+            default_x = {1: [1000], 2: [700, 1250], 3: [520, 960, 1400]}.get(len(chars), [300 + i * 300 for i in range(len(chars))])
         for i, d in enumerate(chars):
             x = default_x[i] if i < len(default_x) else 960; face = .7 if x < 960 else -.7
             if len(chars) == 1: face = d.get("face", -.3)
@@ -233,8 +243,8 @@ class Title(Shot):
         if self.sh["sents"]:
             a, b = self.tl.sent_span(self.sh["sents"][0]); b = self.tl.sent_span(self.sh["sents"][-1])[1]; t0, d = a, max(.3, b - a - .15)
         else: t0, d = self.t0 + .15, .45
-        typed(c, txt, t, t0, d, self.spec.get("size", 140), colr(self.spec.get("color"), '#FFFFFF'), y=H / 2 - (40 if sub else 0))
-        if sub and t > t0 + d: label(c, sub, W / 2, H / 2 + 150, fit_size(sub, 64, 1500), GOLD, align='center', skew=-0.1, alpha=K(t, t0 + d, .3))
+        typed(c, txt, t, t0, d, self.spec.get("size", 140), colr(self.spec.get("color"), '#FFFFFF'), y=VCY - (40 if sub else 0))
+        if sub and t > t0 + d: label(c, sub, W / 2, VCY + 150, fit_size(sub, 64, min(1500, VW - 60)), GOLD, align='center', skew=-0.1, alpha=K(t, t0 + d, .3))
 
     def default_zoom(self): return 1.03
 
@@ -269,7 +279,10 @@ class Table(Shot):
         c.save(); c.translate(960, 540); c.rotate(r); c.translate(-960, -540); self._items(c, t, n); c.restore()
 
     def _items(self, c, t, n):
-        slots = {1: [(760, 545, 4)], 2: [(560, 560, -5), (1300, 520, 6)], 3: [(480, 560, -6), (1000, 520, 4), (1480, 580, -3)]}.get(n, [(400 + i * 360, 540, (-1) ** i * 5) for i in range(n)])
+        if PORT:
+            slots = {1: [(960, 545, 4)], 2: [(750, 560, -5), (1170, 520, 6)], 3: [(680, 560, -6), (960, 520, 4), (1240, 580, -3)]}.get(n, [(600 + i * 250, 540, (-1) ** i * 5) for i in range(n)])
+        else:
+            slots = {1: [(760, 545, 4)], 2: [(560, 560, -5), (1300, 520, 6)], 3: [(480, 560, -6), (1000, 520, 4), (1480, 580, -3)]}.get(n, [(400 + i * 360, 540, (-1) ** i * 5) for i in range(n)])
         for i, it in enumerate(self.items):
             if t < it["t"]: continue
             x, y, rot = slots[i % len(slots)]; k = back(K(t, it["t"], .5), 1.3); fromx = -900 if x < 960 else W + 900; px = lerp(fromx, x, k)
@@ -281,7 +294,7 @@ class Table(Shot):
                 hx_ = px - (480 if fromx < 0 else -480); sv = 1 if fromx < 0 else -1
                 sleeve(c, hx_ - 560 * sv, 700, hx_, 640, 170, self.hand['suit'], skin=self.hand['skin'])
 
-    def label_x(self): return 1440 if len(self.items) < 2 else 960
+    def label_x(self): return 960 if PORT else (1440 if len(self.items) < 2 else 960)
 
     def default_zoom(self): return 1.08
 
@@ -296,7 +309,9 @@ class Map(Shot):
         super().__init__(*a); self.setname = "map"; self.dark_ok = False
         pl = self.spec.get("places", [{"name": "A"}, {"name": "B"}]); n = len(pl)
         for i, p in enumerate(pl):
-            p.setdefault("x", 420 + i * (1080 / max(1, n - 1)) if n > 1 else 960); p.setdefault("y", 640 - (i % 2) * 110)
+            if PORT: p.setdefault("x", 600 + i * (720 / max(1, n - 1)) if n > 1 else 960)
+            else: p.setdefault("x", 420 + i * (1080 / max(1, n - 1)) if n > 1 else 960)
+            p.setdefault("y", 640 - (i % 2) * 110)
         self.places = pl; self.rt = self.cue(self.spec.get("at"), .15); self.events.append(("whoosh", self.rt))
 
     def light_on(self): return False
@@ -339,8 +354,9 @@ class Chart(Shot):
         super().__init__(*a); self.setname = "board"; self.time = self.spec.get("time", "day"); self.night = False
         self.ch = self.spec.get("chart", {}); self.ct = self.cue(self.ch.get("at"), .08)
         if self.spec.get("who"):
-            d = dict(id=self.spec["who"], x=140, face=.7, pose=self.spec.get("pose", "point"), emotion=self.spec.get("emotion", "confident"))
-            self.actors.append(Actor(self, d, 140, 1060, .95, .7))
+            ax = 600 if PORT else 140
+            d = dict(id=self.spec["who"], x=ax, face=.7, pose=self.spec.get("pose", "point"), emotion=self.spec.get("emotion", "confident"))
+            self.actors.append(Actor(self, d, ax, 1060, .95, .7))
         self.events.append(("tick", self.ct))
 
     def world(self, c, t):
@@ -397,19 +413,19 @@ class Counter(Shot):
         if t < self.ct: return
         nf = fmt if v.get("short") else (lambda q: f"{round(q):,}" if abs(v["to"]) >= 100 else f"{q:.1f}".rstrip("0").rstrip("."))
         val = lerp(v.get("from", 0), v["to"], u); txt = f"{v.get('prefix', '')}{nf(val)}{v.get('suffix', '')}"
-        full = f"{v.get('prefix', '')}{nf(v['to'])}{v.get('suffix', '')}"; size = fit_size(full, 240, 1500, MARKER); pu = pop(K(t, self.ct, .3))
+        full = f"{v.get('prefix', '')}{nf(v['to'])}{v.get('suffix', '')}"; size = fit_size(full, 240, min(1500, VW - 60), MARKER); pu = pop(K(t, self.ct, .3))
         y = 470 if self.cmp or self.spec.get("caption") else 600
         c.save(); c.translate(960, y); c.rotate(-3); c.scale(pu, pu); label(c, txt, 0, 0, size, colr(v.get("color"), LIME), font=MARKER, align='center', stroke=0, skew=0)
         c.restore()
-        if self.spec.get("icon"): draw_prop(c, self.spec["icon"], 300, 560, .9 * back(K(t, self.ct, .4), 1.5), t)
+        if self.spec.get("icon"): draw_prop(c, self.spec["icon"], 590 if PORT else 300, 1050 if PORT else 560, .9 * back(K(t, self.ct, .4), 1.5), t)
         cap = self.spec.get("caption")
-        if cap: label(c, cap, 960, y + 130, fit_size(cap, 80, 1500), INK, align='center', skew=-0.1, alpha=K(t, self.ct + .3, .3))
+        if cap: label(c, cap, 960, y + 130, fit_size(cap, 80, min(1500, VW - 60)), INK, align='center', skew=-0.1, alpha=K(t, self.ct + .3, .3))
         if self.cmp and t >= self.cmp["t"]:
             k = back(K(t, self.cmp["t"], .35), 1.4); c.save(); c.translate(960, 860); c.scale(k, k); c.rotate(2)
-            s_ = self.cmp["text"]; size = fit_size(s_, 70, 1400); w = text_w(s_, size)
+            s_ = self.cmp["text"]; size = fit_size(s_, 70, min(1400, VW - 100)); w = text_w(s_, size)
             rect(c, -w / 2 - 50, -size, w / 2 + 50, size * .55, '#FFFFFF', LW, r=20); label(c, s_, 0, 0, size, RED, align='center', skew=-0.08)
             c.restore()
-            if self.cmp.get("icon"): draw_prop(c, self.cmp["icon"], 1640, 560, .8 * back(K(t, self.cmp["t"], .4), 1.5), t)
+            if self.cmp.get("icon"): draw_prop(c, self.cmp["icon"], 1330 if PORT else 1640, 250 if PORT else 560, .8 * back(K(t, self.cmp["t"], .4), 1.5), t)
 
     def default_zoom(self): return 1.06
 
@@ -419,10 +435,16 @@ class Icon(Shot):
 
     def __init__(self, *a):
         super().__init__(*a); self.setname = "void"; self.night = False
-        ic = self.spec.get("icons", [{"name": "bulb"}]); n = len(ic); xs = {1: [960], 2: [620, 1300], 3: [460, 960, 1460]}.get(n, [300 + i * 1320 / max(1, n - 1) for i in range(n)])
+        ic = self.spec.get("icons", [{"name": "bulb"}]); n = len(ic)
+        if PORT:
+            self.lab_mw = 620 if n == 1 else (460 if n == 2 else 300)   # portrait: label budget = the icon's share of the band
+            xs = [960] if n == 1 else [VX0 + self.lab_mw / 2 + i * (VW - self.lab_mw) / (n - 1) for i in range(n)]
+        else:
+            self.lab_mw = 620 if n < 3 else 520
+            xs = {1: [960], 2: [620, 1300], 3: [460, 960, 1460]}.get(n, [300 + i * 1320 / max(1, n - 1) for i in range(n)])
         self.icons = [dict(d, t=self.cue(d.get("at"), .05 + .25 * i), x=d.get("x", xs[i]), y=d.get("y", 470)) for i, d in enumerate(ic)]
         self.events += [("pop", d["t"]) for d in self.icons]
-        for d in self.spec.get("chars", []): self.actors.append(Actor(self, d, d.get("x", 1650), 1010, d.get("s", .8), d.get("face", -.6)))
+        for d in self.spec.get("chars", []): self.actors.append(Actor(self, d, d.get("x", 1280 if PORT else 1650), 1010, d.get("s", .8), d.get("face", -.6)))
 
     def build_bg(self, c): self.info = SETS["void"](c, {"color": self.spec.get("color", "#F3E6C8"), "floor": bool(self.spec.get("chars"))})
 
@@ -430,12 +452,13 @@ class Icon(Shot):
         super().world(c, t)
         for d in self.icons:
             if t < d["t"]: continue
-            k = back(K(t, d["t"], .4), 1.6); fl = 8 * math.sin((t - d["t"]) * 2.2); sc = d.get("s", 1.6 if len(self.icons) == 1 else 1.2 if len(self.icons) == 2 else .95)
+            k = back(K(t, d["t"], .4), 1.6); fl = 8 * math.sin((t - d["t"]) * 2.2)
+            sc = d.get("s", 1.6 if len(self.icons) == 1 else 1.2 if len(self.icons) == 2 else (.75 if PORT else .95))
             draw_prop(c, d["name"], d["x"], d["y"] + fl, sc * k, t, **{x: v for x, v in d.items() if x not in ("name", "x", "y", "s", "at", "t", "label")})
             if d.get("label"):
-                s_ = d["label"]; label(c, s_, d["x"], d["y"] + 210 * sc + 70, fit_size(s_, 80, 620 if len(self.icons) < 3 else 520), INK, align='center', skew=-0.1, alpha=K(t, d["t"] + .2, .2))
+                s_ = d["label"]; label(c, s_, d["x"], d["y"] + 210 * sc + 70, fit_size(s_, 80, self.lab_mw), INK, align='center', skew=-0.1, alpha=K(t, d["t"] + .2, .2))
 
-    def label_x(self): return 960 if len(self.icons) > 1 else 1440
+    def label_x(self): return 960 if PORT or len(self.icons) > 1 else 1440
 
     def default_zoom(self): return 1.06
 
@@ -447,21 +470,22 @@ class ListItem(Shot):
         super().__init__(*a); self.setname = "void"; self.night = False
         if self.spec.get("who"):
             d = dict(id=self.spec["who"], emotion=self.spec.get("emotion", "confident"), pose=self.spec.get("pose", "explain"), beats=self.spec.get("char_beats", []))
-            self.actors.append(Actor(self, d, 1500, 1010, 1.0, -.6))
+            self.actors.append(Actor(self, d, 1300 if PORT else 1500, 1010, .8 if PORT else 1.0, -.6))
         self.events.append(("pop", self.t0 + .1))
 
     def build_bg(self, c): self.info = SETS["void"](c, {"color": self.spec.get("color", "#F3E6C8"), "floor": bool(self.spec.get("who"))})
 
     def world(self, c, t):
         super().world(c, t); n = self.spec.get("number", 1); txt = self.spec.get("text", "")
-        cx = 700 if self.actors else 960; number_badge(c, n, cx, 300, t - self.t0 - .1, colr(self.spec.get("badge"), GOLD))
-        lines = wrap(txt, 110, 1000 if self.actors else 1500)
-        size = 110 if len(lines) <= 2 else 84; lines = wrap(txt, size, 1000 if self.actors else 1500)
+        cx = 820 if PORT and self.actors else 960; number_badge(c, n, cx, 300, t - self.t0 - .1, colr(self.spec.get("badge"), GOLD))
+        tw_ = 680 if PORT and self.actors else (1000 if self.actors else 1500)
+        lines = wrap(txt, 110, tw_)
+        size = 110 if len(lines) <= 2 else 84; lines = wrap(txt, size, tw_)
         for i, ln in enumerate(lines[:3]):
             a = K(t, self.t0 + .35 + i * .15, .25); label(c, ln, cx, 560 + i * size * 1.1, size, INK, font=FONT_HAND, align='center', skew=0, alpha=a)
         u = K(t, self.t0 + .5, .5)
         if u > 0 and lines:
-            w_ = min(1300, text_w(lines[0], size, FONT_HAND)) * ease(u); y = 560 + (min(3, len(lines)) - 1) * size * 1.1 + 40
+            w_ = min(1300 if not PORT else VW - 60, text_w(lines[0], size, FONT_HAND)) * ease(u); y = 560 + (min(3, len(lines)) - 1) * size * 1.1 + 40
             c.drawLine(cx - w_ / 2, y, cx + w_ / 2, y + 6, ink(14, colr(self.spec.get("badge"), GOLD)))
 
     def default_zoom(self): return 1.05
@@ -473,7 +497,7 @@ class Versus(Shot):
     def __init__(self, *a):
         super().__init__(*a); self.setname = "void"; self.night = False
         self.sides = []
-        for side, x, face in (("left", 520, .5), ("right", 1400, -.5)):
+        for side, x, face in (("left", 640 if PORT else 520, .5), ("right", 1280 if PORT else 1400, -.5)):
             d = dict(self.spec.get(side, {})); d.setdefault("x", x); d.setdefault("face", face)
             if d.get("who"):
                 d["id"] = d["who"]; self.actors.append(Actor(self, d, x, 1000, d.get("s", 1.0), face))
@@ -497,7 +521,12 @@ class Versus(Shot):
         if u > 0:
             c.save(); c.translate(960, 520); k = back(u, 1.6); c.scale(k, k); circ(c, 0, 0, 92, RED, LW * 1.2); label(c, "VS", 0, 34, 100, '#FFFFFF', font=MARKER, align='center', skew=0); c.restore()
         for s_ in self.sides:
-            if s_.get("title"): poplabel(c, s_["title"], s_["x"], 180, t - s_["t"], 100, CREAM if s_["x"] < 960 else LIME, -3 if s_["x"] < 960 else 3)
+            if s_.get("title"):
+                hx = s_["x"]; kw = {}
+                if PORT:
+                    hx = min(max(hx, VX0 + 220), VX1 - 220)   # header must fit the band
+                    kw = {"max_w": max(400, min(1500, 2 * min(hx - VX0, VX1 - hx) - 140))}
+                poplabel(c, s_["title"], hx, 180, t - s_["t"], 100, CREAM if hx < 960 else LIME, -3 if hx < 960 else 3, **kw)
 
     def default_zoom(self): return 1.04
 
@@ -511,7 +540,10 @@ class Crowd(Shot):
         self.people = []
         rows = 3; per = math.ceil(n / rows)
         for i in range(n):
-            row = i // per; x = 160 + (i % per) * (1600 / max(1, per - 1)) + (row % 2) * 40; y = 760 + row * 120; s = .42 + row * .1
+            row = i // per
+            if PORT: x = 540 + (i % per) * (880 / max(1, per - 1)) + (row % 2) * 40
+            else: x = 160 + (i % per) * (1600 / max(1, per - 1)) + (row % 2) * 40
+            y = 760 + row * 120; s = .42 + row * .1
             look = make_look(dict(skin=r.choice(list(SKINS)), outfit=r.choice(['suit', 'hoodie', 'tshirt', 'dress']), color=r.choice(palette),
                                   hair=r.choice(['short', 'slick', 'bun', 'long', 'curly', 'bald']), hair_col=r.choice(['#1C1B22', '#6B4A2A', '#C9A04A', '#8A8A92'])))
             self.people.append((x, y, s, look, r.uniform(-.6, .6), r.uniform(0, 6)))

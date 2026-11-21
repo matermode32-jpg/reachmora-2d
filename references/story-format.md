@@ -14,6 +14,7 @@
 - `title` names the output file. `mood` picks the music: `mystery` (sneaky, swing, money and crime stories), `upbeat` (pop, self-improvement and business wins), `dramatic` (slow and heavy, rise and fall, disasters), `calm` (soft, life lessons and psychology), `tense` (pulsing, scams, survival, countdowns).
 - `s` is the sentence range a shot covers, using the numbers printed by `python3 -m engine sentences <P>`: `[4]` is one sentence, `[4, 6]` covers 4, 5 and 6. Shots must cover every sentence once, in order. The shot starts just before its first sentence and ends just before the next shot's.
 - A shot **without** `s` is silent. It inserts a pause of `hold` seconds (default 1.6) into the timeline. Use this only for chapter cards (`title`), at most one every 2-3 minutes. The voice is shifted, never cut.
+- `orient` chooses the frame: `"portrait"` renders a vertical **1080x1920** (9:16) video for Shorts, Reels and TikTok; omit it (or use `"landscape"`) for the default **1920x1080**. The storyboard itself does not change: every shot kind, set, label, icon, stamp and caption automatically reframes into the 9:16 visible band, and `x` values authored for landscape (characters, labels, stamps, map places) are clamped inboard for you. Decide it before writing the shots; `plan`, `stills` and `render` all honour the field (the `--portrait` flag forces it for one run). A portrait final is saved as `<title>_v.mp4`, so it never overwrites a landscape cut of the same project.
 
 ## Cues: `at`
 
@@ -116,6 +117,8 @@ Spoken (`s` given): the words type in with the voice, which suits punchlines lik
 
 ## Pacing rules that make long videos watchable
 
+- **No dead visual space.** Nothing sits still and empty: every shot has the slow push-in plus at least one event (beat, label, prop, counter, camera move) every 2-3 s, and pauses — where the voice rests — are the *most* active moments on screen. A bare background for more than ~3 s means the shot needs content or a split.
+- **Captions:** word-by-word motion subtitles are on by default (bottom band, current word lime + popped; `"subs": false` only if the user asks). Keep `labels`, `stamp`, `lower_third`, props and character detail above **y ≈ 900** so they never sit in the caption band, and never add your own text that transcribes the voiceover — the captions already do that.
 - **Shot length:** 3-8 s. 3 min is about 30-40 shots, 5 min 50-65, 10 min 100-130, 15 min 150-190. If a sentence runs longer than about 9 s, give it two beats or labels.
 - **Never more than two of the same kind in a row.** Rotate world shots (wide, closeup, walk) with graphics (icon, counter, chart, table, versus, list).
 - **Every number on screen.** Use a counter, chart or label for each figure.

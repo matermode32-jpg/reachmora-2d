@@ -6,8 +6,21 @@ import numpy as np, skia
 
 W, H, FPS = 1920, 1080, 30  # design space: everything is drawn in 1920x1080 coordinates
 RES = int(os.environ.get("RM_RES", "1080"))  # output height: 1080 (final) or 720 (2.25x faster)
-OW, OH = (1280, 720) if RES == 720 else (1920, 1080)
-OS = OW / W  # design -> output scale
+PORT = os.environ.get("RM_ORIENT", "landscape").lower().startswith("port")  # 9:16 vertical output
+if PORT:  # portrait: the frame is a 9:16 window (the "band") cut from the 1920x1080 design space
+    OW, OH = (720, 1280) if RES == 720 else (1080, 1920)
+    BAND_W = 960.0
+    BAND_H = BAND_W * OH / OW                       # 1706.67 design px tall (9:16)
+    VX0 = W / 2 - BAND_W / 2                        # 480 .. 1440 horizontally
+    VX1 = VX0 + BAND_W
+    VY1 = 1040.0 + 0.15 * BAND_H                    # floor line sits 85% down the frame
+    VY0 = VY1 - BAND_H
+else:
+    OW, OH = (1280, 720) if RES == 720 else (1920, 1080)
+    VX0, VY0, VX1, VY1 = 0.0, 0.0, float(W), float(H)
+VCX, VCY = (VX0 + VX1) / 2, (VY0 + VY1) / 2         # centre of the visible window (design coords)
+VW, VH = VX1 - VX0, VY1 - VY0                       # visible size in design coords
+OS = OW / VW  # design -> output scale (1.0 landscape 1080, 1.125 portrait)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FD = os.environ.get("RM_FONTS", os.path.join(ROOT, "fonts")) + os.sep
 
@@ -122,9 +135,14 @@ def cone_path(x, y, top_w, bot_w, length, lean=0):
     p = skia.Path(); p.moveTo(x - top_w / 2, y); p.lineTo(x + top_w / 2, y); p.lineTo(x + lean + bot_w / 2, y + length); p.lineTo(x + lean - bot_w / 2, y + length); p.close(); return p
 def blur_begin(c, sigma):  # depth blur for everything until c.restore()
     p = skia.Paint(); p.setImageFilter(skia.ImageFilters.Blur(sigma, sigma)); c.saveLayer(None, p)
+def scr(c):
+    """Base transform for screen-space drawing: design coords -> output pixels."""
+    c.scale(OS, OS); c.translate(-VX0, -VY0)
+
+
 def vignette(c, strength=0.64, inner=.42):
     if strength <= 0: return
-    c.drawRect(skia.Rect(0, 0, W, H), sp(radial(W / 2, H / 2, W * .74, [C((0, 0, 0), 0), C((0, 0, 0), 0), C((2, 3, 12), 255 * strength)], [0, inner, 1])))
+    c.drawRect(skia.Rect(VX0, VY0, VX1, VY1), sp(radial(VCX, VCY, VW * .74, [C((0, 0, 0), 0), C((0, 0, 0), 0), C((2, 3, 12), 255 * strength)], [0, inner, 1])))
 def _sat(s, contrast, lift):
     lr, lg, lb = 0.2126, 0.7152, 0.0722
     m = [lr * (1 - s) + s, lg * (1 - s), lb * (1 - s), lr * (1 - s), lg * (1 - s) + s, lb * (1 - s), lr * (1 - s), lg * (1 - s), lb * (1 - s) + s]
@@ -164,7 +182,8 @@ _VIG = {}
 def _vig_map(strength, inner=.42):
     k = (round(strength, 3), inner)
     if k not in _VIG:
-        yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32); r = np.hypot(xx - OW / 2, yy - OH / 2) / (OW * .74)
+        yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32); rad = (max(OW, OH) if PORT else OW) * .74
+        r = np.hypot(xx - OW / 2, yy - OH / 2) / rad
         _VIG[k] = (strength * np.clip((r - inner) / (1 - inner), 0, 1))[..., None].astype(np.float32)
     return _VIG[k]
 

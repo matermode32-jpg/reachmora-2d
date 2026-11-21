@@ -4,6 +4,7 @@ import numpy as np, skia
 from .kit import *
 from .timeline import Timeline
 from .timing import load_audio
+from .subs import Subs
 from . import shots as SH
 
 _G = {}
@@ -56,7 +57,8 @@ def setup(P):
     if _G.get("P") == P: return
     story, tl, cast = load_project(P); os.makedirs(os.path.join(P, "work"), exist_ok=True)
     env = Env(tl, voice_path(P), os.path.join(P, "work", "mouth.json"))
-    _G.update(P=P, story=story, tl=tl, cast=cast, env=env)
+    subs = Subs(story, tl)
+    _G.update(P=P, story=story, tl=tl, cast=cast, env=env, subs=subs)
 
 
 WORLD = ("wide", "dialogue", "walk", "closeup", "skyline", "crowd", "map")
@@ -86,7 +88,7 @@ class Frame:
 
 
 def _cam(c, z, fx, fy, rot, dx=0.0, dy=0.0):
-    c.save(); c.scale(OS, OS); c.translate(W / 2 + dx, H / 2 + dy); c.scale(z, z); c.rotate(rot); c.translate(-fx, -fy)
+    c.save(); c.scale(OS, OS); c.translate(-VX0, -VY0); c.translate(VCX + dx, VCY + dy); c.scale(z, z); c.rotate(rot); c.translate(-fx, -fy)
 
 
 def draw_frame(shot, fr_, f, whip_in, whip_out):
@@ -112,26 +114,30 @@ def draw_frame(shot, fr_, f, whip_in, whip_out):
             add_into(fr_.buf, fr_.gbuf)
         _cam(c, z, fx, fy, rot, dx, dy); shot.over(c, t); c.restore()
         if not shot.card: finish(fr_.buf, bloom=.4, vig=shot.vig)
-        c.save(); c.scale(OS, OS); shot.screen(c, t); c.restore(); img = None
+        c.save(); scr(c); shot.screen(c, t); c.restore(); img = None
         if pol and t >= pol["t"]:
             fr_.frozen = fr_.image(); a = shot.actor(pol.get("who"))
-            fr_.hero = ((a.head[0] - fx) * z + W / 2, (a.head[1] + 60 - fy) * z + H / 2) if a else (W / 2, H / 2)
+            fr_.hero = ((a.head[0] - fx) * z + VCX, (a.head[1] + 60 - fy) * z + VCY) if a else (VCX, VCY)
             img = fr_.frozen
     if img is not None:
+        IW, IH = (W, H) if not PORT else (740.0, 740.0 * OH / OW)   # polaroid photo size (design coords)
         c.clear(C((12, 12, 22))); k = ease_out((t - pol["t"]) / .32)
-        c.save(); c.scale(OS, OS); c.translate(W / 2, H / 2 - 56 * k); c.rotate(-4.0 * k); sc = 1 - .33 * k; c.scale(sc, sc)
+        c.save(); scr(c); c.translate(VCX, VCY - 56 * k); c.rotate(-4.0 * k); sc = 1 - .33 * k; c.scale(sc, sc)
         for i, a_ in enumerate((40, 30, 22)):  # soft drop shadow without a full-frame blur
-            o = 14 + i * 10; c.drawRRect(skia.RRect.MakeRectXY(skia.Rect(-W / 2 - 44 + o, -H / 2 - 44 + o, W / 2 + 44 + o, H / 2 + 170 + o), 12, 12), fp((0, 0, 0), a_))
-        c.drawRect(skia.Rect(-W / 2 - 44, -H / 2 - 44, W / 2 + 44, H / 2 + 170), fp('#F7F2E6'))
-        c.drawImageRect(img, skia.Rect(-W / 2, -H / 2, W / 2, H / 2), LINEAR)
-        c.drawRect(skia.Rect(-W / 2, -H / 2, W / 2, H / 2), ink(4, INK, 160))
-        hx_, hy_ = fr_.hero; hx_ -= W / 2; hy_ -= H / 2
+            o = 14 + i * 10; c.drawRRect(skia.RRect.MakeRectXY(skia.Rect(-IW / 2 - 44 + o, -IH / 2 - 44 + o, IW / 2 + 44 + o, IH / 2 + 170 + o), 12, 12), fp((0, 0, 0), a_))
+        c.drawRect(skia.Rect(-IW / 2 - 44, -IH / 2 - 44, IW / 2 + 44, IH / 2 + 170), fp('#F7F2E6'))
+        c.drawImageRect(img, skia.Rect(-IW / 2, -IH / 2, IW / 2, IH / 2), LINEAR)
+        c.drawRect(skia.Rect(-IW / 2, -IH / 2, IW / 2, IH / 2), ink(4, INK, 160))
+        hx_, hy_ = fr_.hero; hx_ -= VCX; hy_ -= VCY
         if t > pol["t"] + .3:
             cu = min((t - pol["t"] - .3) / .4, 1); r_ = skia.Path(); r_.addArc(skia.Rect(hx_ - 190, hy_ - 200, hx_ + 200, hy_ + 260), -110, 352.0 * ease(cu)); c.drawPath(r_, ink(18, RED))
         if t > pol["t"] + .68 and pol.get("caption"):
-            cap = pol["caption"]; label(c, cap, -W / 2 + 40, H / 2 + 128, fit_size(cap, 118, W - 80, FONT_HAND), RED, font=FONT_HAND, skew=0, alpha=min((t - pol["t"] - .68) / .12, 1))
+            cap = pol["caption"]; label(c, cap, -IW / 2 + 40, IH / 2 + 128, fit_size(cap, 118, IW - 80, FONT_HAND), RED, font=FONT_HAND, skew=0, alpha=min((t - pol["t"] - .68) / .12, 1))
         c.restore(); fl = max(0, 1 - (t - pol["t"]) / .22)
-        if fl > 0: c.drawRect(skia.Rect(0, 0, W, H), fp('#FFFFFF', 255 * fl))
+        if fl > 0: c.drawRect(skia.Rect(VX0, VY0, VX1, VY1), fp('#FFFFFF', 255 * fl))
+    sb = _G.get("subs")
+    if img is None and sb is not None:            # word-by-word motion subtitles (skipped on the frozen polaroid)
+        c.save(); scr(c); sb.draw(c, t); c.restore()
     if sig > 0: hblur(fr_.buf, sig)
     fr_.buf[..., 3] = 255
 
@@ -142,8 +148,8 @@ def seg_hash(tl, i, whips):
     return hashlib.md5(h.encode()).hexdigest()[:12]
 
 
-VERSION = "rm3"
-SEGS = "segs" if RES == 1080 else f"segs{RES}"
+VERSION = "rm4"
+SEGS = ("segs" if RES == 1080 else f"segs{RES}") + ("P" if PORT else "")
 
 
 def render_shot(args):
@@ -203,7 +209,7 @@ def stills(P, which=None, fracs=(.5,), per_sheet=24, out_name="sheet"):
             f = shot.f0 + int((shot.f1 - shot.f0 - 1) * q); fr_ = Frame()
             if shot.pol and f / FPS >= shot.pol["t"]: draw_frame(shot, fr_, int(shot.pol["t"] * FPS + 1), False, False)
             draw_frame(shot, fr_, f, False, False); tiles.append((i, shot.kind, f, fr_.image()))
-    tw, th, cols = 480, 270, 4; paths = []
+    tw, th, cols = (270, 480, 6) if PORT else (480, 270, 4); paths = []
     for s0 in range(0, len(tiles), per_sheet):
         chunk = tiles[s0:s0 + per_sheet]; rows = math.ceil(len(chunk) / cols)
         sheet = skia.Surface(cols * tw, rows * (th + 34)); c = sheet.getCanvas(); c.clear(C((20, 20, 26)))

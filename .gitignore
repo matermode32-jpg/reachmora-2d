@@ -1,0 +1,7 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Speech model (~630 MB) - downloaded by scripts/setup.sh from the
+# sherpa-onnx GitHub release, cannot be committed (GitHub 100 MB file limit)
+models/
